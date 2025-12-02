@@ -78,15 +78,43 @@ Deno.serve(async (req: Request) => {
     }
 
     const geminiData: GeminiResponse = await geminiResponse.json();
+    console.log('Gemini response:', JSON.stringify(geminiData));
 
     if (!geminiData.candidates || geminiData.candidates.length === 0) {
       console.error('No candidates in Gemini response:', JSON.stringify(geminiData));
-      throw new Error('Gemini returned no candidates');
+      throw new Error('Gemini returned no candidates - possibly blocked or filtered');
+    }
+
+    if (!geminiData.candidates[0]?.content?.parts?.[0]?.text) {
+      console.error('Invalid Gemini response structure:', JSON.stringify(geminiData));
+      throw new Error('Gemini response missing text content');
     }
 
     const aiMessage = geminiData.candidates[0].content.parts[0].text;
 
     const extractedData = extractDataFromMessage(message);
+
+    if (extractedData.childAge && (extractedData.childAge < 2 || extractedData.childAge > 18)) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          response: {
+            message: "Hmm, that age doesn't seem quite right for our youth programs (ages 2-18). Could you double-check and let me know their actual age?",
+            nextState: context.currentState,
+            extractedData: {},
+            quickReplies: [],
+            progress: calculateProgress(context.currentState),
+          },
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+
     const nextState = determineNextState(context.currentState, extractedData);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
