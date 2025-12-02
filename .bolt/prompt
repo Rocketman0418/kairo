@@ -1,0 +1,1128 @@
+# Kairo - AI-Powered Youth Registration Platform
+## Bolt.new Project Instructions
+
+**Version:** 2.0 | **Updated:** December 2, 2025 | **Status:** Planning Phase
+
+---
+
+## Design & Code Quality Standards
+
+For all designs, create **beautiful, production-worthy interfaces**—not cookie-cutter templates. Every component should be fully featured, polished, and ready for real users.
+
+**Technology Defaults:**
+- JSX syntax with Tailwind CSS classes
+- React hooks for state management
+- Lucide React for icons
+- TypeScript for type safety
+
+Do not install additional UI packages unless absolutely necessary or explicitly requested.
+
+---
+
+## Part 1: Core Mission & Purpose
+
+### What is Kairo?
+
+Kairo is a conversational AI-powered registration platform that transforms youth sports and activity enrollment from a painful **18-20 minute process into a seamless sub-5-minute experience** (targeting 3 minutes). We replace "dinosaur" legacy platforms that cause 46% drop-off rates with an intelligent, voice-enabled system.
+
+**Core Value Proposition**: "Registration in 3 Minutes, Not 20"
+
+**Platform Name Origin**: "Kairo" derives from Greek "καιρός" (kairos)—"the opportune moment"—capturing the perfect time for families to connect with enriching activities.
+
+### The Problem We Solve
+
+**For Parents:**
+- 18-20 minute registration with repeated data entry
+- 46% abandon before completing (after accepting price!)
+- Mobile-unfriendly forms requiring desktop
+- No voice option for hands-free completion
+- No memory of previous registrations
+
+**For Business Owners:**
+- "Held hostage" by legacy platforms with 6-8 week fix turnarounds
+- $80K+/month lost to registration abandonment (documented)
+- 20+ hours/week on manual admin processes
+- 5+ expensive tools that don't integrate
+- Zero AI automation for retention or upselling
+
+### Target Impact Metrics
+
+| Metric | Current State | Kairo Target |
+|--------|---------------|--------------|
+| Registration Time | 18-20 minutes | Under 5 min (target: 3) |
+| Completion Rate | 54% | 95%+ |
+| Admin Hours/Week | 20+ hours | 5 hours |
+| Waitlist Sign-ups | High | <20% of inquiries |
+
+---
+
+## Part 2: Architectural Principles
+
+### Technology Philosophy
+
+- **Mobile-First PWA**: Every feature must work excellently on mobile Safari and Chrome before desktop—parents register on phones while managing children
+- **Conversation-First**: Natural language as primary interface, forms as intelligent fallback
+- **Voice-Ready**: Architecture supports voice input/output for hands-free registration
+- **Real-Time First**: Live availability, instant confirmations, synchronized calendars
+- **AI-Enhanced**: AI augments the registration experience, never blocks core functionality
+- **White-Label Ready**: Every touchpoint customizable per business brand
+- **Progressive Enhancement**: Core registration works without AI; AI makes it magical
+
+### The Distracted Parent Context
+
+**CRITICAL DESIGN CONSTRAINT**: Our primary end user is a parent with:
+- An 18-month-old on their hip
+- A phone pressed between cheek and shoulder
+- A 4-year-old adding "artwork" to the furniture behind them
+- Limited, interrupted attention spans
+- Evening hours (5-9 PM) as peak registration time
+
+Every UI decision must account for this reality. If a feature requires sustained attention or two-handed operation, it's not designed correctly.
+
+---
+
+## Part 3: Kai AI Agent Architecture
+
+### Single Agent with Specialized Backend
+
+**Important Update**: Kairo uses a **single front-facing AI agent (Kai)** that orchestrates specialized backend processing. The user only ever interacts with "Kai"—all complex operations happen behind the scenes.
+
+```
+User ←→ Kai (Front-facing Agent)
+              ↓
+    ┌─────────┼─────────┐
+    ↓         ↓         ↓
+ DATABOT   PAYBOT   COMMBOT   (Backend Specialists - invisible to user)
+    ↓         ↓         ↓
+    └─────────┼─────────┘
+              ↓
+        Database/APIs
+```
+
+**Kai's Responsibilities:**
+- Conversational registration guidance
+- Smart class recommendations based on preferences and availability
+- Natural language understanding (text and voice)
+- Context preservation across conversation turns
+- Graceful error handling and fallback to guided forms
+
+**Backend Specialists (NOT user-facing):**
+
+| Specialist | Role | Function |
+|------------|------|----------|
+| DATABOT | Data Manager | Validation, COPPA/GDPR compliance, duplicate detection |
+| PAYBOT | Payment Handler | Payment processing, plans, failed payment recovery |
+| COMMBOT | Communications | Automated messages, reminders, campaigns |
+| SOLVOBOT | Problem Resolver | Cart recovery, issue resolution, escalation |
+
+**White-Label Note**: "Kai" is the default agent name. Business owners can customize to match their brand (e.g., "Splash" for swim schools, "Striker" for soccer programs).
+
+### AI Integration Pattern
+
+```
+User Input → Kai Agent → Smart Recommendations → User Confirmation → Database Write → Confirmation
+     ↓                         ↓
+Voice/Text              Availability Check
+     ↓                         ↓
+Transcription           Class Optimization
+```
+
+**Key Principles:**
+- AI orchestration via webhooks (not direct API calls in frontend)
+- Graceful degradation when AI unavailable (fallback to guided forms)
+- Context preservation across conversation turns
+- Clear visual distinction between AI suggestions and user selections
+
+---
+
+## Part 4: Development Methodology
+
+### S.C.A.T.E. Prompting Framework
+
+Every Bolt.new prompt MUST follow this structure for clarity and consistency:
+
+- **S - Scope**: Define precise boundaries. What files to create or modify.
+- **C - Context**: Explain the *why*. User story or business need being addressed.
+- **A - Action**: Use clear imperatives. Create, Modify, Refactor, Implement.
+- **T - Technology**: Specify libraries, APIs, patterns for *this specific task*.
+- **E - Expectation**: Define acceptance criteria. What does "done" look like?
+
+**Example S.C.A.T.E. Prompt:**
+
+```markdown
+# Voice Registration Flow - Initial Implementation
+
+## S - SCOPE
+Create new files:
+- src/components/VoiceRegistration/VoiceRegistration.tsx
+- src/hooks/useVoiceCapture.ts
+- src/services/registrationAgent.ts
+
+Modify existing:
+- src/App.tsx (add route)
+- src/components/Navigation/Navigation.tsx (add nav item)
+
+## C - CONTEXT
+Parents registering children for youth sports programs are juggling multiple tasks.
+Current 18-20 minute form-based registration causes 46% drop-off.
+Voice registration allows hands-free completion in 3-5 minutes.
+
+## A - ACTION
+Implement voice-driven registration flow that:
+1. Captures parent's spoken responses
+2. Extracts registration data (child name, age, program preferences)
+3. Confirms details before submission
+4. Handles clarification when needed
+
+## T - TECHNOLOGY
+- Web Speech API for voice capture
+- OpenAI Whisper API for transcription (via Supabase Edge Function)
+- Existing Supabase auth for user context
+- Existing registration schema in database
+
+## E - EXPECTATION
+- User taps "Register by Voice" button
+- System prompts for information conversationally
+- Registration completes with <5 voice interactions
+- Fallback to text input if voice fails
+- Works on mobile Safari and Chrome
+```
+
+### CRITICAL: Preservation Philosophy
+
+**When creating prompts, ALWAYS protect existing working code.**
+
+#### 1. Identify Existing Infrastructure First
+
+Before suggesting any changes:
+- Ask what features are already working
+- Identify existing hooks, contexts, and state management
+- Map out current API integrations and webhooks
+- Review existing mobile-optimized components and patterns
+
+**Questions to Ask:**
+- "What's currently working that we should preserve?"
+- "Can you show me the existing component we're extending?"
+- "What database tables handle this data?"
+- "What AI agent features are currently functional?"
+
+#### 2. Default to Minimal Changes
+
+- **Start with the assumption that existing code should be preserved**
+- Only suggest new components when absolutely necessary
+- Prefer extending existing components over replacing them
+- Reuse existing patterns, styles, and design systems
+
+#### 3. Explicit Preservation Instructions
+
+Every Bolt.new prompt must include a **"PRESERVE EXISTING"** section:
+
+```markdown
+## ✅ PRESERVE EXISTING (DO NOT CHANGE)
+- [List existing components to keep]
+- [List existing hooks/contexts to keep]
+- [List existing AI integrations to reuse]
+- [List existing styling/design patterns to keep]
+- [List existing mobile optimizations to keep]
+
+## ➕ ADD NEW (Minimal Changes Only)
+- [New component 1] - extends existing [X]
+- [New hook 1] - follows pattern from [Y]
+
+## 🔗 INTEGRATION POINTS
+- [Exactly where new code connects to existing]
+- [Which files need minor updates]
+
+## ⚠️ CRITICAL: Reuse Existing Infrastructure
+[Specific instructions about using existing services]
+```
+
+#### Anti-Patterns to Avoid
+
+**Never suggest:**
+- Replacing working components without clear justification
+- Rebuilding functional features from scratch
+- Changing established patterns that are working
+- Creating duplicate workflows or integrations
+- Redesigning working mobile layouts
+
+**Instead, say:**
+"I see you have [feature] working. Let's build on top of that by [minimal change needed]."
+
+---
+
+## Part 5: Design Principles
+
+### 1. Distracted Parent UX
+
+- **One-handed operation**: All critical actions reachable by thumb
+- **Interruptible flows**: Save state automatically, resume seamlessly
+- **Clear progress**: Always show where user is in registration process
+- **Instant feedback**: Visual/haptic confirmation for every action
+- **Error prevention**: Smart defaults, not error messages
+- **Timeout recovery**: If parent walks away, conversation waits patiently
+
+### 2. Mobile-Optimized Design
+
+- Touch targets minimum **48x48px** (larger than standard for distracted use)
+- Bottom navigation for thumb accessibility
+- Pull-to-refresh where appropriate
+- Swipe gestures for common actions
+- No hover-dependent interactions
+- Fast initial load (<3 seconds on mobile 4G)
+
+### 3. Conversational Interface Principles
+
+- **Short messages**: AI responses never exceed 3 sentences
+- **One question at a time**: Never overwhelm with multiple asks
+- **Confirmation before action**: "I'll register Connor for Wednesday Soccer. Sound good?"
+- **Easy corrections**: "Actually, can we do Thursday instead?" should just work
+- **Progress visibility**: "Great! Just need payment info, then you're done."
+
+### 4. Voice Considerations
+
+- Clear visual feedback during voice capture
+- Text display of transcribed speech for verification
+- Easy correction ("That's not quite right" triggers re-listen)
+- Fallback button to switch to text input
+- Works in noisy environments (parent may have TV/kids in background)
+
+### 5. Accessibility & Inclusion
+
+- Semantic HTML structure
+- Keyboard navigation for desktop users
+- Screen reader compatibility (proper ARIA labels, roles, live regions)
+- High contrast ratios (4.5:1 minimum for normal text)
+- Support for reduced motion preferences
+- Multi-language ready (English, Spanish at minimum)
+
+---
+
+## Part 6: Technology Stack
+
+```
+├── Frontend
+│   ├── React with TypeScript
+│   ├── Tailwind CSS
+│   ├── Lucide React (icons)
+│   └── Web Speech API + Whisper (voice)
+├── Backend
+│   ├── Supabase (PostgreSQL + Auth + Real-time)
+│   ├── Row Level Security (RLS)
+│   └── Edge Functions (serverless logic)
+├── AI Services
+│   ├── OpenAI GPT-4 / Claude (conversation)
+│   ├── Whisper API (voice transcription)
+│   └── N8N (workflow orchestration)
+└── Integrations
+    ├── Stripe (payments)
+    ├── Twilio (SMS, voice)
+    └── SendGrid (email)
+
+Infrastructure:
+├── Hosting: Vercel (frontend) + Supabase (backend)
+├── CDN: Vercel Edge Network
+├── Monitoring: Supabase Dashboard + custom analytics
+├── Error Tracking: Sentry
+└── CI/CD: GitHub Actions
+```
+
+---
+
+## Part 7: Core Database Schema
+
+```sql
+-- Organizations (Business Owners)
+CREATE TABLE organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  settings JSONB DEFAULT '{}',
+  branding JSONB DEFAULT '{}',
+  ai_agent_name TEXT DEFAULT 'Kai',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Locations
+CREATE TABLE locations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id),
+  name TEXT NOT NULL,
+  address TEXT,
+  geo_coordinates POINT,
+  time_windows JSONB,
+  capacity INTEGER,
+  amenities JSONB,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Programs (e.g., "Mini Soccer", "Premier Swim")
+CREATE TABLE programs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id),
+  name TEXT NOT NULL,
+  description TEXT,
+  age_range INT4RANGE,
+  duration_weeks INTEGER,
+  price_cents INTEGER NOT NULL,
+  payment_plan_options JSONB,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Sessions (specific class instances)
+CREATE TABLE sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  program_id UUID REFERENCES programs(id),
+  location_id UUID REFERENCES locations(id),
+  coach_id UUID REFERENCES staff(id),
+  start_date DATE NOT NULL,
+  end_date DATE,
+  day_of_week INTEGER, -- 0-6
+  start_time TIME NOT NULL,
+  capacity INTEGER NOT NULL,
+  enrolled_count INTEGER DEFAULT 0,
+  waitlist_count INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Families (Parent accounts)
+CREATE TABLE families (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id),
+  primary_contact_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT,
+  address JSONB,
+  preferences JSONB DEFAULT '{}',
+  engagement_score NUMERIC,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Children
+CREATE TABLE children (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_id UUID REFERENCES families(id),
+  first_name TEXT NOT NULL,
+  last_name TEXT,
+  date_of_birth DATE NOT NULL,
+  medical_info JSONB, -- Encrypted
+  skill_level TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Registrations
+CREATE TABLE registrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES sessions(id),
+  child_id UUID REFERENCES children(id),
+  family_id UUID REFERENCES families(id),
+  status TEXT DEFAULT 'pending',
+  payment_status TEXT,
+  payment_method TEXT,
+  amount_cents INTEGER,
+  enrolled_at TIMESTAMPTZ,
+  registration_channel TEXT, -- voice, text, web, sms
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Staff/Coaches
+CREATE TABLE staff (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id),
+  user_id UUID REFERENCES auth.users(id),
+  name TEXT NOT NULL,
+  role TEXT, -- coach, admin, owner
+  rating NUMERIC,
+  availability JSONB,
+  certifications JSONB,
+  background_check_status TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Conversations (for Kai context)
+CREATE TABLE conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_id UUID REFERENCES families(id),
+  channel TEXT, -- voice, text, web, sms
+  state TEXT DEFAULT 'idle',
+  context JSONB DEFAULT '{}',
+  messages JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Waitlist
+CREATE TABLE waitlist (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES sessions(id),
+  child_id UUID REFERENCES children(id),
+  family_id UUID REFERENCES families(id),
+  position INTEGER,
+  alternatives_shown JSONB,
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  notified_at TIMESTAMPTZ
+);
+
+-- Payments
+CREATE TABLE payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  registration_id UUID REFERENCES registrations(id),
+  family_id UUID REFERENCES families(id),
+  amount_cents INTEGER NOT NULL,
+  status TEXT DEFAULT 'pending',
+  stripe_payment_intent_id TEXT,
+  payment_method_type TEXT,
+  receipt_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Cart Recovery Tracking
+CREATE TABLE cart_recovery (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_id UUID REFERENCES families(id),
+  conversation_id UUID REFERENCES conversations(id),
+  abandoned_at TIMESTAMPTZ DEFAULT now(),
+  recovery_attempts INTEGER DEFAULT 0,
+  last_attempt_at TIMESTAMPTZ,
+  recovered BOOLEAN DEFAULT false,
+  recovered_at TIMESTAMPTZ
+);
+```
+
+### Row Level Security Examples
+
+```sql
+-- Families can only see their own data
+CREATE POLICY "Families see own data" ON families
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- Business owners see their organization's registrations
+CREATE POLICY "Org admins see registrations" ON registrations
+  FOR SELECT USING (
+    session_id IN (
+      SELECT s.id FROM sessions s
+      JOIN programs p ON s.program_id = p.id
+      WHERE p.organization_id IN (
+        SELECT organization_id FROM staff WHERE user_id = auth.uid()
+      )
+    )
+  );
+
+-- Real-time availability is public read, system write only
+```
+
+---
+
+## Part 8: Technical Patterns
+
+### State Management
+
+```typescript
+// Local state for UI interactions
+const [isRecording, setIsRecording] = useState(false);
+
+// Supabase for persistent data
+const { data: registration } = useQuery('registrations', fetchRegistration);
+
+// Real-time for live availability
+useEffect(() => {
+  const subscription = supabase
+    .channel('session-availability')
+    .on('postgres_changes', { 
+      event: '*', 
+      schema: 'public', 
+      table: 'sessions' 
+    }, handleAvailabilityChange)
+    .subscribe();
+    
+  return () => subscription.unsubscribe();
+}, []);
+```
+
+### Conversation State Machine
+
+```
+IDLE → GREETING → CHILD_INFO → PREFERENCES → RECOMMENDATIONS → 
+SELECTION → PAYMENT → CONFIRMATION → COMPLETE
+```
+
+Each state has:
+- Expected user inputs
+- AI response templates
+- Fallback handling
+- Timeout behavior (save state, wait patiently)
+- Resume capability
+
+### AI Webhook Pattern
+
+```typescript
+const sendToKai = async (message: string, context: ConversationContext) => {
+  try {
+    setAiTyping(true);
+    
+    const response = await fetch('/api/kai-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        context: {
+          conversationId: context.id,
+          currentState: context.state,
+          familyId: context.familyId,
+          organizationId: context.organizationId,
+          childrenData: context.children,
+          preferences: context.preferences,
+        },
+      }),
+    });
+    
+    if (!response.ok) throw new Error('AI unavailable');
+    
+    const data = await response.json();
+    return data.response;
+  } catch (error) {
+    // Fallback to guided form
+    return { 
+      fallback: true, 
+      message: "I'm having trouble understanding. Let me show you the options directly.",
+      showFormFallback: true 
+    };
+  } finally {
+    setAiTyping(false);
+  }
+};
+```
+
+### Voice Input Pattern
+
+```typescript
+const useVoiceRegistration = () => {
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  
+  const startListening = () => {
+    if ('webkitSpeechRecognition' in window) {
+      const recognition = new webkitSpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = userLanguage; // Support Spanish
+      
+      recognition.onresult = (event) => {
+        const current = event.results[event.results.length - 1];
+        setTranscript(current[0].transcript);
+        
+        if (current.isFinal) {
+          processVoiceInput(current[0].transcript);
+        }
+      };
+      
+      recognition.onerror = () => showTextInputFallback();
+      recognition.start();
+      setIsListening(true);
+    } else {
+      showTextInputFallback();
+    }
+  };
+  
+  return { isListening, transcript, startListening, stopListening };
+};
+```
+
+### Real-Time Availability Pattern
+
+```typescript
+useEffect(() => {
+  if (!recommendedSessions.length) return;
+  
+  const subscription = supabase
+    .channel('availability-updates')
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'sessions',
+      filter: `id=in.(${recommendedSessions.map(s => s.id).join(',')})`
+    }, (payload) => {
+      updateSessionAvailability(payload.new);
+      
+      // If selected session just filled, notify and suggest alternatives
+      if (selectedSession?.id === payload.new.id && 
+          payload.new.enrolled_count >= payload.new.capacity) {
+        notifySessionFilled();
+        suggestAlternatives();
+      }
+    })
+    .subscribe();
+    
+  return () => subscription.unsubscribe();
+}, [recommendedSessions]);
+```
+
+### Payment Flow Pattern
+
+```typescript
+// 1. Create payment intent on server
+const { clientSecret } = await createPaymentIntent({
+  amount,
+  registrationId,
+  familyId,
+});
+
+// 2. Confirm with Stripe Elements
+const result = await stripe.confirmPayment({
+  elements,
+  clientSecret,
+  confirmParams: {
+    return_url: `${window.location.origin}/registration/complete`,
+  },
+});
+
+// 3. Handle result
+if (result.error) {
+  // Show friendly error, offer retry
+  showPaymentError(result.error);
+} else {
+  // Payment successful, trigger confirmations
+  await sendConfirmations(registrationId);
+}
+```
+
+---
+
+## Part 9: Component Architecture
+
+```
+src/
+├── components/
+│   ├── chat/
+│   │   ├── ChatContainer.tsx       # Main conversation view
+│   │   ├── ChatMessage.tsx         # Individual message bubble
+│   │   ├── ChatInput.tsx           # Text/voice input area
+│   │   ├── QuickReplies.tsx        # Suggested responses
+│   │   └── VoiceIndicator.tsx      # Recording state UI
+│   │
+│   ├── registration/
+│   │   ├── ChildForm.tsx           # Child info collection (fallback)
+│   │   ├── ClassSelector.tsx       # Session selection UI
+│   │   ├── ClassCard.tsx           # Individual class display
+│   │   ├── AvailabilityBadge.tsx   # Spots remaining indicator
+│   │   └── ProgressBar.tsx         # Registration progress
+│   │
+│   ├── payment/
+│   │   ├── PaymentForm.tsx         # Stripe integration
+│   │   ├── PaymentPlanSelector.tsx # Installment options
+│   │   └── PaymentConfirmation.tsx # Success state
+│   │
+│   ├── common/
+│   │   ├── Button.tsx              # Standardized button
+│   │   ├── Input.tsx               # Form inputs
+│   │   ├── Modal.tsx               # Overlay dialogs
+│   │   ├── Loading.tsx             # Skeleton/spinner
+│   │   └── ErrorBoundary.tsx       # Error catching
+│   │
+│   └── dashboard/                  # Business owner components
+│       ├── StatsCard.tsx
+│       ├── RegistrationList.tsx
+│       ├── RevenueChart.tsx
+│       └── AlertsPanel.tsx
+│
+├── hooks/
+│   ├── useVoice.ts                 # Voice capture logic
+│   ├── useConversation.ts          # Chat state management
+│   ├── useAvailability.ts          # Real-time availability
+│   ├── useFamily.ts                # Family/child data
+│   └── usePayment.ts               # Payment processing
+│
+├── services/
+│   ├── ai/
+│   │   ├── kaiAgent.ts             # Registration AI logic
+│   │   └── intentParser.ts         # Message intent extraction
+│   │
+│   ├── registration/
+│   │   ├── sessionMatcher.ts       # Availability matching
+│   │   ├── waitlistManager.ts      # Waitlist logic
+│   │   └── confirmationSender.ts   # Post-registration comms
+│   │
+│   └── integrations/
+│       ├── stripe.ts               # Payment processing
+│       ├── calendar.ts             # Calendar generation
+│       └── twilio.ts               # SMS communications
+│
+├── contexts/
+│   ├── AuthContext.tsx             # User authentication
+│   ├── OrganizationContext.tsx     # Current business context
+│   ├── RegistrationContext.tsx     # In-progress registration
+│   └── ThemeContext.tsx            # White-label theming
+│
+└── types/
+    ├── registration.ts             # Registration types
+    ├── organization.ts             # Business owner types
+    ├── conversation.ts             # Chat types
+    └── database.ts                 # Supabase types
+```
+
+### Key Type Definitions
+
+```typescript
+// Registration state machine
+type RegistrationState = 
+  | 'idle'
+  | 'greeting'
+  | 'collecting_child_info'
+  | 'collecting_preferences'
+  | 'showing_recommendations'
+  | 'confirming_selection'
+  | 'collecting_payment'
+  | 'processing_payment'
+  | 'confirmed'
+  | 'error';
+
+// Conversation message
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  metadata?: {
+    intent?: string;
+    extractedData?: Record<string, any>;
+    quickReplies?: string[];
+    showFormFallback?: boolean;
+  };
+}
+
+// Session availability
+interface SessionAvailability {
+  sessionId: string;
+  capacity: number;
+  enrolledCount: number;
+  spotsRemaining: number;
+  waitlistCount: number;
+  isAvailable: boolean;
+  nextAvailableAlternative?: string;
+}
+
+// Family account
+interface Family {
+  id: string;
+  primaryContactName: string;
+  email: string;
+  phone: string;
+  address?: Address;
+  children: Child[];
+  paymentMethods: SavedPaymentMethod[];
+  preferences: FamilyPreferences;
+}
+```
+
+---
+
+## Part 10: Brand & Design System
+
+### Visual Identity
+
+```css
+/* Primary - Trust & Energy */
+--kairo-primary: #2563eb;      /* Blue - trust, reliability */
+--kairo-primary-light: #3b82f6;
+--kairo-primary-dark: #1d4ed8;
+
+/* Secondary - Growth & Activity */
+--kairo-secondary: #10b981;    /* Green - growth, health, go */
+--kairo-secondary-light: #34d399;
+
+/* Accent - Warmth & Attention */
+--kairo-accent: #f59e0b;       /* Amber - warmth, attention, family */
+
+/* AI Distinction */
+--kairo-ai: #8b5cf6;           /* Purple - AI responses */
+--kairo-ai-light: #a78bfa;
+
+/* Semantic */
+--kairo-success: #22c55e;
+--kairo-warning: #f59e0b;
+--kairo-error: #ef4444;
+
+/* Neutrals */
+--kairo-bg-primary: #ffffff;
+--kairo-bg-secondary: #f8fafc;
+--kairo-text-primary: #1e293b;
+--kairo-text-secondary: #64748b;
+```
+
+**White-Label Support:**
+Business owners can customize:
+- Primary and secondary colors
+- Logo placement
+- Agent name (Kai → custom)
+- Welcome messages
+- Email templates
+
+### Typography
+
+```css
+/* System fonts for performance */
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+/* Hierarchy */
+--font-size-hero: 2rem;      /* 32px - Main headings */
+--font-size-title: 1.5rem;   /* 24px - Section titles */
+--font-size-body: 1rem;      /* 16px - Body text, chat messages */
+--font-size-small: 0.875rem; /* 14px - Labels, metadata */
+--font-size-tiny: 0.75rem;   /* 12px - Timestamps, hints */
+```
+
+### Interaction Patterns
+
+**Chat Bubbles:**
+- User messages: Right-aligned, primary color background
+- AI messages: Left-aligned, light gray background with AI indicator
+- System messages: Centered, subtle styling
+- Quick replies: Horizontal scroll, pill buttons
+
+**Loading States:**
+- AI thinking: Animated dots in chat bubble
+- Form submission: Button spinner, disabled state
+- Page load: Skeleton screens, not spinners
+- Voice capture: Pulsing microphone indicator
+
+---
+
+## Part 11: Performance Requirements
+
+| Metric | Target | Alert Threshold |
+|--------|--------|-----------------|
+| Page Load (Mobile 4G) | < 3 seconds | > 5 seconds |
+| Voice Response Latency | < 500ms | > 1 second |
+| Kai Response Time | < 2 seconds | > 5 seconds |
+| Registration Completion | < 5 minutes | > 8 minutes |
+| Payment Processing | < 3 seconds | > 5 seconds |
+| API Response (p95) | < 200ms | > 500ms |
+| Uptime | 99.9% | < 99.5% |
+
+### Performance Patterns
+
+- Lazy load conversation history (last 10, load more on scroll)
+- Debounce voice transcription
+- Prefetch likely next options
+- Compress images before upload
+- Cache static data (locations, programs) aggressively
+- Use React.memo for message bubbles
+- Virtualize long lists
+
+---
+
+## Part 12: Security Standards
+
+### Authentication
+- Use Supabase Auth (don't roll custom auth)
+- Implement proper session management
+- Support social auth where appropriate
+
+### Data Protection
+- **COPPA Compliance**: Parental consent for children under 13
+- **Data Minimization**: Only collect what's necessary
+- **Secure Storage**: Medical info encrypted at rest
+- **Payment Security**: PCI DSS compliance via Stripe tokenization
+- **RLS Policies**: Row-level security on all user data tables
+- **Input Sanitization**: Never trust client-side validation alone
+
+---
+
+## Part 13: Error Handling Philosophy
+
+### User-Facing Errors
+
+Every error should:
+1. Explain what happened (simply)
+2. Suggest what to do next
+3. Preserve any data entered
+4. Offer human help if needed
+
+**Good Examples:**
+```
+"That class just filled up! Here are 3 similar options that still have spots."
+
+"I couldn't process your payment. Please check your card details and try again, or use a different card."
+
+"Hmm, I didn't catch that. Could you say it again? Or you can type instead."
+```
+
+**Bad Examples:**
+```
+"Error: STRIPE_CARD_DECLINED"
+
+"Something went wrong. Please try again."
+
+"An unexpected error occurred."
+```
+
+### Error Recovery Pattern
+
+```typescript
+const ErrorBoundary = ({ children }: PropsWithChildren) => {
+  return (
+    <ErrorBoundaryComponent
+      fallback={
+        <div className="p-4 text-center">
+          <h2>Something went wrong</h2>
+          <p>Your registration is saved. Refresh to continue.</p>
+          <Button onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </div>
+      }
+    >
+      {children}
+    </ErrorBoundaryComponent>
+  );
+};
+```
+
+---
+
+## Part 14: Testing Scenarios
+
+### Critical User Flows
+
+1. **New Family Registration**
+   - First-time parent, one child
+   - Voice vs. text completion
+   - Payment plan selection
+   - Calendar invite delivery
+
+2. **Returning Family**
+   - Recognition and auto-population
+   - New sibling registration
+   - Saved card usage
+   - Multi-child discount application
+
+3. **Waitlist Intelligence**
+   - Preferred class full → alternatives offered
+   - Adjacent day acceptance
+   - Expanded radius acceptance
+   - Waitlist as last resort
+
+4. **Race Conditions**
+   - Two parents selecting same last spot
+   - Session fills during payment entry
+   - Waitlist notification when spot opens
+
+5. **Payment Scenarios**
+   - Successful payment
+   - Card declined → clear error, retry
+   - Payment plan setup
+   - Network failure → recovery path
+
+6. **Mobile-Specific**
+   - One-handed operation throughout
+   - Phone call interruption → resume
+   - Background/foreground transitions
+   - Slow network (3G)
+
+### Testing Approach
+
+- **Device Testing**: Actual iOS and Android devices
+- **Network Testing**: Chrome DevTools 3G/offline simulation
+- **One-Handed Testing**: Lock phone in one hand, complete registration
+- **Interruption Testing**: Switch apps mid-flow, return after 5 minutes
+- **Voice Testing**: Quiet and noisy environments
+
+---
+
+## Part 15: Development Stages Reference
+
+Development follows a 12-stage approach (see KAIRO_Project_Plan_UPDATED.md for full details):
+
+| Stage | Focus | Key Features |
+|-------|-------|--------------|
+| 1 | Foundation | Basic registration, family accounts, program setup |
+| 2 | Kai Intelligence | Voice registration, smart recommendations |
+| 3 | Payments | Stripe integration, payment plans, refunds |
+| 4 | Business Intelligence | Dashboard, analytics, reporting |
+| 5 | Communications | Email/SMS, reminders, notifications |
+| 6 | Retention | Cart recovery, re-enrollment, engagement tracking |
+| 7 | Coach Management | Scheduling, curriculum, attendance |
+| 8 | Marketing Integration | Social media, campaigns, referrals |
+| 9 | Advanced Analytics | Predictive churn, demand forecasting |
+| 10 | White-Label | Multi-tenant, custom branding |
+| 11 | Enterprise | Multi-location, franchise support |
+| 12 | API & Ecosystem | Public API, marketplace integrations |
+
+---
+
+## Part 16: Common Pitfalls to Avoid
+
+### ❌ Don't:
+
+- Require two-handed operation for any registration step
+- Show error messages without actionable next steps
+- Block registration if AI is slow or unavailable
+- Assume voice will work (always have text fallback)
+- Store raw payment data anywhere in the application
+- Display more than 3 class options without user request
+- Use hover states for critical functionality
+- Forget to handle the "session just filled" race condition
+- Assume English-only users
+- Design only for ideal network conditions
+
+### ✅ Do:
+
+- Test every flow one-handed on an actual phone
+- Provide graceful degradation for all AI features
+- Show "spots remaining" to create urgency and transparency
+- Allow conversation restart without losing data
+- Confirm before any payment action
+- Support family accounts (siblings, returning families)
+- Display coach photos/names to build trust
+- Send calendar invites automatically
+- Handle timezone conversions properly
+- Test with realistic data volumes (100+ sessions, 500+ registrations)
+
+---
+
+## Part 17: Key Development Questions
+
+Before implementing ANY feature, ask:
+
+1. **Can a distracted parent use this one-handed?**
+2. **How does this work via voice conversation?**
+3. **What happens if AI is slow or unavailable?**
+4. **Does this maintain our <5 minute goal?**
+5. **Is this white-label ready?**
+6. **What's the mobile-specific behavior?**
+7. **How does real-time availability affect this?**
+8. **Is user feedback immediate and clear?**
+9. **What existing code should we preserve?**
+10. **Are we extending or replacing? (Always prefer extending)**
+
+---
+
+## Core Principle
+
+> **Kairo should make registration feel like a conversation with a helpful friend who happens to know exactly what's available and can handle payment instantly. Every technical decision should serve the distracted parent's need to get their kid signed up for a great activity in 3 minutes or less.**
+
+---
+
+## Document Control
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0 | Initial | Original Bolt.new instructions |
+| 2.0 | Dec 2, 2025 | Updated to align with project plan: single Kai agent architecture, S.C.A.T.E. framework, preservation philosophy, 12-stage development reference, fixed encoding issues |
+
+---
+
+**END OF BOLT.NEW PROJECT INSTRUCTIONS**
+
+*Build something beautiful that solves a real problem for real families. The distracted parent is counting on you.*
