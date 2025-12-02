@@ -63,9 +63,14 @@ Deno.serve(async (req: Request) => {
           }],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 300,
+            maxOutputTokens: 500,
             topP: 0.95,
-            topK: 40,
+            topK: 64,
+          },
+          systemInstruction: {
+            parts: [{
+              text: "You are Kai. Respond directly and concisely. Do not use internal reasoning or thinking - just provide the direct response."
+            }]
           },
         }),
       }
@@ -85,12 +90,25 @@ Deno.serve(async (req: Request) => {
       throw new Error('Gemini returned no candidates - possibly blocked or filtered');
     }
 
-    if (!geminiData.candidates[0]?.content?.parts?.[0]?.text) {
-      console.error('Invalid Gemini response structure:', JSON.stringify(geminiData));
+    const candidate = geminiData.candidates[0];
+    const finishReason = (geminiData.candidates[0] as any).finishReason;
+
+    if (finishReason === 'MAX_TOKENS' || finishReason === 'RECITATION') {
+      console.error('Gemini hit token limit or recitation:', JSON.stringify(geminiData));
+      throw new Error('AI response was cut off - please try rephrasing your message');
+    }
+
+    if (!candidate?.content?.parts || candidate.content.parts.length === 0) {
+      console.error('No parts in Gemini response:', JSON.stringify(geminiData));
+      throw new Error('Gemini response missing content - possibly filtered');
+    }
+
+    if (!candidate.content.parts[0]?.text) {
+      console.error('No text in first part:', JSON.stringify(geminiData));
       throw new Error('Gemini response missing text content');
     }
 
-    const aiMessage = geminiData.candidates[0].content.parts[0].text;
+    const aiMessage = candidate.content.parts[0].text;
 
     const extractedData = extractDataFromMessage(message);
 
