@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
     geminiHeaders.append('Content-Type', 'application/json');
 
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(GEMINI_API_KEY.trim())}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(GEMINI_API_KEY.trim())}`,
       {
         method: 'POST',
         headers: geminiHeaders,
@@ -63,14 +63,9 @@ Deno.serve(async (req: Request) => {
           }],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 500,
+            maxOutputTokens: 5000,
             topP: 0.95,
             topK: 64,
-          },
-          systemInstruction: {
-            parts: [{
-              text: "You are Kai. Respond directly and concisely. Do not use internal reasoning or thinking - just provide the direct response."
-            }]
           },
         }),
       }
