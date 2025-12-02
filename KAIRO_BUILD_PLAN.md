@@ -1,8 +1,8 @@
 # Kairo Platform - Strategic Build Plan
 
-**Version:** 1.0
-**Last Updated:** December 2, 2025
-**Current Stage:** Stage 1 Complete → Moving to Stage 2
+**Version:** 2.0
+**Last Updated:** December 2, 2025 (Afternoon)
+**Current Stage:** Stage 2 In Progress (AI Integration Complete)
 
 ---
 
@@ -22,12 +22,14 @@ Transform youth sports registration from an 18-20 minute painful process into a 
   - Cost-effective for high-volume conversations
   - Strong natural language understanding
   - Good at structured data extraction
+  - 5000 max output tokens for comprehensive responses
 
 ### Integration Pattern
-- **N8N Workflows** for all AI orchestration
-- **Webhook-based** communication (UI ↔ N8N ↔ AI)
-- **Supabase Edge Functions** for lightweight operations
-- **Direct Supabase calls** for data operations
+- **Supabase Edge Functions** for AI orchestration (Deno runtime)
+- **Direct Gemini API calls** from Edge Functions
+- **Frontend → Edge Function → Gemini → Response** flow
+- **Supabase client** for data operations within Edge Functions
+- **Real-time subscriptions** for live availability updates
 
 ### Database
 - **Supabase PostgreSQL** with Row Level Security
@@ -89,14 +91,19 @@ Transform youth sports registration from an 18-20 minute painful process into a 
 - Waitlist prevention intelligence
 - Multi-language support (English, Spanish)
 
-**Planned Features:**
+**Completed Features:**
 
-#### 2.1 AI Integration
-- [ ] N8N workflow for Kai conversation management
-- [ ] Gemini Flash API integration
-- [ ] Intent recognition and data extraction
-- [ ] Context preservation across turns
-- [ ] Conversation state machine implementation
+#### 2.1 AI Integration ✅
+- [x] Supabase Edge Function for Kai conversation management (`kai-conversation`)
+- [x] Gemini Flash API integration (`gemini-flash-latest`)
+- [x] Intent recognition and data extraction (regex-based)
+- [x] Context preservation across turns (conversation state)
+- [x] Conversation state machine implementation
+- [x] SystemInstruction for consistent Kai personality
+- [x] Error handling with fallback to guided forms
+- [x] Age validation (2-18 years)
+
+**In Progress Features:**
 
 #### 2.2 Smart Recommendations
 - [ ] Age-based class filtering
@@ -126,29 +133,35 @@ Transform youth sports registration from an 18-20 minute painful process into a 
 - [ ] Language detection
 - [ ] Translation layer
 
-**Key Files to Create:**
-- `src/services/ai/kaiAgent.ts` - AI service layer
-- `src/services/ai/geminiClient.ts` - Gemini API wrapper
-- `src/hooks/useConversation.ts` - Conversation state hook
+**Files Created:**
+- `supabase/functions/kai-conversation/index.ts` - Kai AI Edge Function ✅
+- `src/services/ai/kaiAgent.ts` - AI service layer ✅
+- `src/hooks/useConversation.ts` - Conversation state hook ✅
+
+**Files to Create:**
 - `src/hooks/useVoiceInput.ts` - Voice capture hook
 - `src/utils/recommendations.ts` - Recommendation logic
 - `src/utils/waitlistIntelligence.ts` - Alternative suggestions
+- `supabase/functions/session-recommendations/index.ts` - Session matching Edge Function
+- `supabase/functions/find-alternatives/index.ts` - Waitlist alternatives Edge Function
 
-**N8N Workflows Needed:**
-1. **Kai Conversation Flow**
-   - Webhook: `/webhook/kai-message`
-   - Input: user message, conversation context
-   - Output: AI response, next state, extracted data
+**Edge Functions Architecture:**
+1. **kai-conversation** ✅ (Deployed)
+   - Endpoint: `/functions/v1/kai-conversation`
+   - Handles: User messages, conversation state, AI responses
+   - Gemini integration with systemInstruction
+   - Data extraction (name, age, preferences)
+   - State machine progression
 
-2. **Session Recommendations**
-   - Webhook: `/webhook/recommend-sessions`
+2. **session-recommendations** (Planned)
+   - Endpoint: `/functions/v1/session-recommendations`
    - Input: child age, location preferences, schedule
-   - Output: ranked session list
+   - Output: ranked session list with availability
 
-3. **Waitlist Alternatives**
-   - Webhook: `/webhook/find-alternatives`
+3. **find-alternatives** (Planned)
+   - Endpoint: `/functions/v1/find-alternatives`
    - Input: preferred session details
-   - Output: alternative sessions (adjacent days, expanded radius, etc.)
+   - Output: alternative sessions (adjacent days, expanded radius)
 
 ---
 
@@ -233,21 +246,30 @@ Transform youth sports registration from an 18-20 minute painful process into a 
 
 ---
 
-## N8N Webhook Architecture
+## Edge Function Architecture
 
 ### Pattern Overview
 ```
-Frontend (React) → N8N Webhook → Gemini Flash → Data Processing → Response
-                        ↓
-                  Supabase Write
-                        ↓
-                  Real-time Update
+Frontend (React) → Edge Function → Gemini Flash API → Response
+                         ↓
+                   Supabase Client
+                         ↓
+                   Database Update
+                         ↓
+                   Real-time Subscription
 ```
 
-### Webhook Structure
+### Architecture Benefits
+- **Serverless:** Auto-scaling Deno runtime
+- **Secure:** API keys never exposed to frontend
+- **Fast:** Edge deployment close to users
+- **Type-safe:** TypeScript throughout
+- **Integrated:** Direct Supabase client access
 
-#### 1. Kai Conversation Webhook
-**Endpoint:** `https://[n8n-instance]/webhook/kai-message`
+### Edge Function Structure
+
+#### 1. kai-conversation (Deployed)
+**Endpoint:** `https://[project].supabase.co/functions/v1/kai-conversation`
 
 **Request:**
 ```json
@@ -255,11 +277,11 @@ Frontend (React) → N8N Webhook → Gemini Flash → Data Processing → Respon
   "message": "My son Connor is 4 years old",
   "conversationId": "uuid",
   "context": {
-    "state": "collecting_child_info",
+    "currentState": "collecting_child_info",
     "organizationId": "uuid",
     "familyId": "uuid",
-    "messages": [...],
-    "extractedData": {}
+    "children": [],
+    "preferences": {}
   }
 }
 ```
@@ -269,20 +291,28 @@ Frontend (React) → N8N Webhook → Gemini Flash → Data Processing → Respon
 {
   "success": true,
   "response": {
-    "message": "Perfect! Connor is 4 years old. I found 3 classes...",
-    "nextState": "showing_recommendations",
+    "message": "Perfect! Connor is 4 years old. What days work best for you?",
+    "nextState": "collecting_preferences",
     "extractedData": {
       "childName": "Connor",
       "childAge": 4
     },
-    "quickReplies": ["Show me Wednesday classes", "Show me Saturday classes"],
-    "sessions": [...]
+    "quickReplies": ["Weekday afternoons", "Weekend mornings", "Show me all options"],
+    "progress": 50
   }
 }
 ```
 
-#### 2. Session Recommendations Webhook
-**Endpoint:** `https://[n8n-instance]/webhook/recommend-sessions`
+**Implementation Details:**
+- Gemini API integration with `systemInstruction`
+- State machine: greeting → child_info → preferences → recommendations → confirmation
+- Data extraction: name, age, days, times
+- Conversation state persisted to Supabase
+- 5000 max output tokens
+- Comprehensive error handling
+
+#### 2. session-recommendations (Planned)
+**Endpoint:** `https://[project].supabase.co/functions/v1/session-recommendations`
 
 **Request:**
 ```json
@@ -291,7 +321,7 @@ Frontend (React) → N8N Webhook → Gemini Flash → Data Processing → Respon
   "childAge": 4,
   "preferences": {
     "location": null,
-    "dayOfWeek": null,
+    "dayOfWeek": [1, 3, 5],
     "timeOfDay": "afternoon",
     "radius": 5
   }
@@ -321,8 +351,8 @@ Frontend (React) → N8N Webhook → Gemini Flash → Data Processing → Respon
 }
 ```
 
-#### 3. Waitlist Alternatives Webhook
-**Endpoint:** `https://[n8n-instance]/webhook/find-alternatives`
+#### 3. find-alternatives (Planned)
+**Endpoint:** `https://[project].supabase.co/functions/v1/find-alternatives`
 
 **Request:**
 ```json
@@ -355,11 +385,26 @@ Frontend (React) → N8N Webhook → Gemini Flash → Data Processing → Respon
 {
   "success": false,
   "error": {
-    "code": "AI_TIMEOUT",
+    "code": "AI_ERROR",
     "message": "I'm having trouble understanding. Let me show you the options directly.",
     "fallbackToForm": true
   }
 }
+```
+
+### Calling Edge Functions from Frontend
+```typescript
+const response = await fetch(
+  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/kai-conversation`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ message, conversationId, context }),
+  }
+);
 ```
 
 ---
@@ -372,21 +417,31 @@ VITE_SUPABASE_URL=https://tatunnfxwfsyoiqoaenb.supabase.co
 VITE_SUPABASE_ANON_KEY=[existing key]
 ```
 
-### Required for Stage 2
+### Edge Function Environment Variables (Server-side)
+These are configured automatically in Supabase and do NOT need to be in `.env`:
 ```env
-# Gemini AI
-VITE_GEMINI_API_KEY=[to be provided]
+# Automatically available in Edge Functions
+SUPABASE_URL=https://tatunnfxwfsyoiqoaenb.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=[auto-configured]
+SUPABASE_ANON_KEY=[auto-configured]
 
-# N8N Webhooks
-VITE_N8N_WEBHOOK_BASE_URL=https://[your-n8n-instance]
-VITE_N8N_KAI_WEBHOOK=/webhook/kai-message
-VITE_N8N_RECOMMENDATIONS_WEBHOOK=/webhook/recommend-sessions
-VITE_N8N_ALTERNATIVES_WEBHOOK=/webhook/find-alternatives
-
-# Feature Flags
-VITE_ENABLE_VOICE=true
-VITE_ENABLE_SPANISH=true
+# Configured via Supabase Dashboard > Edge Functions > Secrets
+GEMINI_API_KEY=[configured via dashboard]
 ```
+
+### Frontend Environment Variables
+```env
+# Feature Flags (optional)
+VITE_ENABLE_VOICE=true
+VITE_ENABLE_SPANISH=false
+```
+
+### Configuring Edge Function Secrets
+Edge Function secrets are configured via Supabase dashboard, not in `.env`:
+1. Go to Supabase Dashboard
+2. Navigate to Edge Functions
+3. Click "Manage secrets"
+4. Add `GEMINI_API_KEY`
 
 ---
 
@@ -483,25 +538,39 @@ import { supabase } from './lib/supabase'
 
 ## Next Immediate Steps
 
-1. **Set up Gemini API key** in `.env`
-2. **Create N8N workflows** for Kai conversation
-3. **Build conversation service layer** (`src/services/ai/`)
-4. **Implement session recommendations** with real data
-5. **Add voice input capability** (Web Speech API)
-6. **Test complete registration flow** with mock data
+1. ✅ **Gemini API integration** - Edge Function deployed
+2. ✅ **Kai conversation Edge Function** - `kai-conversation` live
+3. ✅ **Conversation service layer** - `src/services/ai/kaiAgent.ts` created
+4. **Implement session recommendations** - Create `session-recommendations` Edge Function
+5. **Add voice input capability** - Web Speech API integration
+6. **Test complete registration flow** - Full flow from greeting to payment
 
 ---
 
 ## Notes & Decisions Log
 
-### December 2, 2025
+### December 2, 2025 - Morning
 - ✅ Completed Stage 1 foundation
 - ✅ Database schema with 13 tables
 - ✅ RLS policies implemented
 - ✅ Basic chat UI built
 - 🎯 Decision: Use Gemini Flash for AI (speed + cost)
-- 🎯 Decision: N8N webhooks for AI orchestration
 - 🎯 Decision: Mobile-first development approach
+
+### December 2, 2025 - Afternoon
+- ✅ Kai conversation Edge Function deployed
+- ✅ Gemini Flash API integration (`gemini-flash-latest`)
+- ✅ SystemInstruction for consistent Kai personality
+- ✅ Data extraction logic (name, age, preferences)
+- ✅ Conversation state machine (greeting → confirmation)
+- ✅ Error handling with fallback to forms
+- 🎯 **Major Decision: Supabase Edge Functions instead of N8N**
+  - Rationale: Simpler architecture, better integration, type-safe
+  - Edge Functions provide serverless Deno runtime
+  - Direct Gemini API calls from Edge Functions
+  - No external orchestration service needed
+  - Secrets managed via Supabase dashboard
+- 🎯 Decision: 5000 max output tokens for optimal UX (not cost-optimized)
 
 ---
 
