@@ -206,6 +206,12 @@ Deno.serve(async (req: Request) => {
         updatedContext.childAge &&
         (updatedContext.preferredDays || updatedContext.preferredTimeOfDay)) {
 
+      console.log('Fetching recommendations with context:', {
+        childAge: updatedContext.childAge,
+        preferredDays: updatedContext.preferredDays,
+        preferredTimeOfDay: updatedContext.preferredTimeOfDay
+      });
+
       recommendations = await fetchMatchingSessions(
         supabase,
         context.organizationId,
@@ -213,6 +219,18 @@ Deno.serve(async (req: Request) => {
         updatedContext.preferredDays,
         updatedContext.preferredTimeOfDay
       );
+
+      console.log('Recommendations result:', recommendations);
+    } else {
+      console.log('Skipping recommendations fetch:', {
+        nextState: structuredResponse.nextState,
+        childAge: updatedContext.childAge,
+        preferredDays: updatedContext.preferredDays,
+        preferredTimeOfDay: updatedContext.preferredTimeOfDay,
+        reason: structuredResponse.nextState !== 'showing_recommendations' ? 'wrong state' :
+                !updatedContext.childAge ? 'no child age' :
+                'no preferences'
+      });
     }
 
     await supabase

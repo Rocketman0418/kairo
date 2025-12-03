@@ -30,7 +30,9 @@ You must extract structured data from parent messages AND provide a conversation
   - "Monday" → preferredDays: [1]
   - "Mondays or Wednesdays" → preferredDays: [1, 3]
   - "Weekdays" → preferredDays: [1, 2, 3, 4, 5]
-  - "Weekends" → preferredDays: [6, 0]
+  - "Weekends" → preferredDays: [0, 6]
+  - "Weekend mornings" → preferredDays: [0, 6], preferredTimeOfDay: "morning"
+  - "Weekday afternoons" → preferredDays: [1, 2, 3, 4, 5], preferredTimeOfDay: "afternoon"
   - "Mondays are best, but also Thursday or Friday" → preferredDays: [1, 4, 5]
   - "Show me all options" → preferredDays: [0, 1, 2, 3, 4, 5, 6]
   - "Any day works" → preferredDays: [0, 1, 2, 3, 4, 5, 6]
