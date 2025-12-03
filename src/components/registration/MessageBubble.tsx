@@ -22,41 +22,48 @@ export function MessageBubble({ message, onQuickReply, onSelectSession }: Messag
   }
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} items-start gap-3`}>
-      {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-          K
+    <div className="space-y-3">
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} items-start gap-3`}>
+        {!isUser && (
+          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+            K
+          </div>
+        )}
+        <div
+          className={`
+            rounded-lg px-4 py-3 max-w-[70%]
+            ${isUser
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-900'
+            }
+          `}
+        >
+          <p className="text-base leading-relaxed whitespace-pre-wrap break-words">
+            {message.content}
+          </p>
+          {message.metadata?.quickReplies && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {message.metadata.quickReplies.map((reply, index) => (
+                <button
+                  key={index}
+                  onClick={() => onQuickReply?.(reply)}
+                  className="px-3 py-1 bg-white text-blue-600 rounded-full text-sm hover:bg-blue-50 transition-colors border border-blue-200"
+                >
+                  {reply}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-      <div
-        className={`
-          rounded-lg px-4 py-3 max-w-[70%]
-          ${isUser
-            ? 'bg-blue-600 text-white'
-            : 'bg-gray-100 text-gray-900'
-          }
-        `}
-      >
-        <p className="text-base leading-relaxed whitespace-pre-wrap break-words">
-          {message.content}
-        </p>
-        {message.metadata?.quickReplies && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {message.metadata.quickReplies.map((reply, index) => (
-              <button
-                key={index}
-                onClick={() => onQuickReply?.(reply)}
-                className="px-3 py-1 bg-white text-blue-600 rounded-full text-sm hover:bg-blue-50 transition-colors border border-blue-200"
-              >
-                {reply}
-              </button>
-            ))}
+        {isUser && (
+          <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+            U
           </div>
         )}
       </div>
 
       {!isUser && message.metadata?.recommendations && message.metadata.recommendations.length > 0 && (
-        <div className="mt-4 space-y-3 max-w-full">
+        <div className="ml-11 space-y-3">
           {message.metadata.recommendations.map((session) => (
             <SessionCard
               key={session.sessionId}
@@ -64,11 +71,6 @@ export function MessageBubble({ message, onQuickReply, onSelectSession }: Messag
               onSelect={(sessionId) => onSelectSession?.(sessionId)}
             />
           ))}
-        </div>
-      )}
-      {isUser && (
-        <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-          U
         </div>
       )}
     </div>
