@@ -28,7 +28,8 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
     familyId,
     onError: (err) => {
       console.error('Conversation error:', err);
-      setError('Something went wrong. Please try again.');
+      const errorMessage = err.message || 'Something went wrong. Please try again.';
+      setError(errorMessage);
     },
     onFallbackToForm: () => {
       setShowFallbackForm(true);

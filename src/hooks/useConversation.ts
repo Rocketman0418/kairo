@@ -143,12 +143,18 @@ export function useConversation(options: UseConversationOptions) {
 
           setIsLoading(false);
           return aiMsg;
-        } else if (response.error?.fallbackToForm) {
-          onFallbackToForm?.();
+        } else if (response.error) {
+          console.error('Kai error response:', response.error);
+          if (response.error.fallbackToForm) {
+            console.log('Triggering form fallback. Error:', response.error.message);
+            onFallbackToForm?.();
+          } else {
+            throw new Error(response.error.message || 'AI service error');
+          }
           setIsLoading(false);
           return null;
         } else {
-          throw new Error(response.error?.message || 'AI service error');
+          throw new Error('Unknown error from AI service');
         }
       } catch (error) {
         console.error('Send message error:', error);
