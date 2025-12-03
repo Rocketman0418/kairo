@@ -69,25 +69,7 @@ Deno.serve(async (req: Request) => {
           },
           systemInstruction: {
             parts: [{
-              text: `You are Kai, an AI assistant for Kairo - a youth sports registration platform.
-
-Your personality:
-- Warm, friendly, and empathetic (like talking to a helpful neighbor)
-- Efficient and respectful of parents' time
-- Patient and understanding (parents are often distracted)
-- Positive and encouraging about youth activities
-
-Your constraints:
-- Ask ONE question at a time (parents may be multitasking)
-- Keep responses to 2-3 sentences maximum
-- Use natural, conversational language (avoid formal/robotic tone)
-- Focus on gathering: child's name, age, and schedule preferences
-- Never make assumptions - always confirm important details
-
-Your goal:
-- Help parents complete registration in under 5 minutes
-- Make the process feel easy and stress-free
-- Build trust and confidence in the platform`
+              text: `You are Kai, an AI assistant for Kairo - a youth sports registration platform.\n\nYour personality:\n- Warm, friendly, and empathetic (like talking to a helpful neighbor)\n- Efficient and respectful of parents' time\n- Patient and understanding (parents are often distracted)\n- Positive and encouraging about youth activities\n\nYour constraints:\n- Ask ONE question at a time (parents may be multitasking)\n- Keep responses to 2-3 sentences maximum\n- Use natural, conversational language (avoid formal/robotic tone)\n- Focus on gathering: child's name, age, and schedule preferences\n- Never make assumptions - always confirm important details\n\nYour goal:\n- Help parents complete registration in under 5 minutes\n- Make the process feel easy and stress-free\n- Build trust and confidence in the platform`
             }]
           },
         }),
@@ -128,7 +110,7 @@ Your goal:
 
     const aiMessage = candidate.content.parts[0].text;
 
-    const extractedData = extractDataFromMessage(message);
+    const extractedData = extractDataFromMessage(message, context);
 
     if (extractedData.childAge && (extractedData.childAge < 2 || extractedData.childAge > 18)) {
       return new Response(
@@ -219,33 +201,21 @@ function buildSystemPrompt(message: string, context: any): string {
   const instruction = stateInstructions[context.currentState as keyof typeof stateInstructions] ||
     'Continue the conversation naturally.';
 
-  return `You are Kai, a friendly and efficient AI assistant helping parents register their children for youth sports programs.
+  // Build a summary of what we know
+  const knownInfo: string[] = [];
+  if (context.childName) knownInfo.push(`Child's name: ${context.childName}`);
+  if (context.childAge) knownInfo.push(`Child's age: ${context.childAge}`);
+  if (context.preferredDays) knownInfo.push(`Preferred days: ${context.preferredDays}`);
+  if (context.preferredTimeOfDay) knownInfo.push(`Preferred time: ${context.preferredTimeOfDay}`);
 
-Your role:
-- Guide parents through registration in under 5 minutes
-- Ask ONE question at a time (maximum 2-3 sentences)
-- Be warm, empathetic, and conversational
-- Extract key information naturally: child's name, age, location preferences, schedule preferences
-- Be encouraging and positive
+  const knownInfoText = knownInfo.length > 0
+    ? knownInfo.join('\n')
+    : 'Nothing yet - this is the start of the conversation';
 
-Current conversation state: ${context.currentState}
-What you should do now: ${instruction}
-
-What we know so far:
-${JSON.stringify(context.children || [], null, 2)}
-${JSON.stringify(context.preferences || {}, null, 2)}
-
-Parent's latest message: "${message}"
-
-Respond naturally and conversationally. Your response should:
-1. Acknowledge what they said
-2. ${instruction}
-3. Be concise (under 3 sentences)
-
-Remember: You're helping busy parents. Keep it simple and friendly.`;
+  return `You are Kai, a friendly and efficient AI assistant helping parents register their children for youth sports programs.\n\nYour role:\n- Guide parents through registration in under 5 minutes\n- Ask ONE question at a time (maximum 2-3 sentences)\n- Be warm, empathetic, and conversational\n- Extract key information naturally: child's name, age, location preferences, schedule preferences\n- Be encouraging and positive\n\nCurrent conversation state: ${context.currentState}\nWhat you should do now: ${instruction}\n\nInformation collected so far:\n${knownInfoText}\n\nParent's latest message: "${message}"\n\nRespond naturally and conversationally. Your response should:\n1. Acknowledge what they said\n2. ${instruction}\n3. Be concise (under 3 sentences)\n\nRemember: You're helping busy parents. Keep it simple and friendly.`;
 }
 
-function extractDataFromMessage(message: string): Record<string, any> {
+function extractDataFromMessage(message: string, context?: any): Record<string, any> {
   const extractedData: Record<string, any> = {};
 
   const nameMatch = message.match(/(?:name is|called|this is|he'?s|she'?s)\s+([A-Z][a-z]+)/i);
@@ -253,9 +223,15 @@ function extractDataFromMessage(message: string): Record<string, any> {
     extractedData.childName = nameMatch[1];
   }
 
-  const ageMatch = message.match(/(\d+)\s*(?:years?\s*old|yo|yrs?)/i);
-  if (ageMatch) {
-    extractedData.childAge = parseInt(ageMatch[1]);
+  // Match age patterns: "12 years old", "12 yo", "12 yrs", or just "12"
+  const ageMatchWithWords = message.match(/(\d+)\s*(?:years?\s*old|yo|yrs?)/i);
+  const bareNumberMatch = message.match(/^\s*(\d+)\s*$/);
+
+  // If we're in collecting_child_info state and user sends just a number, it's likely the age
+  if (ageMatchWithWords) {
+    extractedData.childAge = parseInt(ageMatchWithWords[1]);
+  } else if (bareNumberMatch && context?.currentState === 'collecting_child_info') {
+    extractedData.childAge = parseInt(bareNumberMatch[1]);
   }
 
   const dayPatterns = [
