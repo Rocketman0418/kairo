@@ -1123,6 +1123,9 @@ Before implementing ANY feature, ask:
 
 ---
 
+GEMINI API CONFIGURATION - **ALWAYS USE**
+Always use gemini-flash-latest as the model for the Gemini API. Never use a different model unless specifically instructed.
+
 **END OF BOLT.NEW PROJECT INSTRUCTIONS**
 
 *Build something beautiful that solves a real problem for real families. The distracted parent is counting on you.*
