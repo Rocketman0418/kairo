@@ -62,10 +62,10 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
     }
   }, [messages.length, addSystemMessage]);
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+  const handleSendMessage = async (messageOverride?: string) => {
+    const messageContent = messageOverride || inputValue;
+    if (!messageContent.trim() || isLoading) return;
 
-    const messageContent = inputValue;
     setInputValue('');
     setError(null);
 
@@ -118,17 +118,11 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
             key={message.id}
             message={message}
             onQuickReply={(reply) => {
-              setInputValue(reply);
-              setTimeout(() => {
-                handleSendMessage();
-              }, 100);
+              handleSendMessage(reply);
             }}
             onSelectSession={(sessionId) => {
               const sessionMessage = `I'd like to register for session ${sessionId}`;
-              setInputValue(sessionMessage);
-              setTimeout(() => {
-                handleSendMessage();
-              }, 100);
+              handleSendMessage(sessionMessage);
             }}
           />
         ))}
