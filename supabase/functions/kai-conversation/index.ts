@@ -229,9 +229,19 @@ function buildSystemPrompt(message: string, context: any): string {
 function extractDataFromMessage(message: string, context?: any): Record<string, any> {
   const extractedData: Record<string, any> = {};
 
-  const nameMatch = message.match(/(?:name is|called|this is|he'?s|she'?s)\s+([A-Z][a-z]+)/i);
-  if (nameMatch) {
-    extractedData.childName = nameMatch[1];
+  // Extract child's name - handle multiple patterns
+  const nameWithPhraseMatch = message.match(/(?:name is|called|this is|he'?s|she'?s)\s+([A-Z][a-z]+)/i);
+  const capitalizedNameMatch = message.match(/^([A-Z][a-z]+)$/);
+  const justNameMatch = message.match(/^([A-Z][a-z]{1,15})$/);
+
+  // If we're in greeting state and user sends just a capitalized word, it's likely the name
+  if (nameWithPhraseMatch) {
+    extractedData.childName = nameWithPhraseMatch[1];
+  } else if (context?.currentState === 'greeting' && justNameMatch) {
+    extractedData.childName = justNameMatch[1];
+  } else if (!context?.childName && capitalizedNameMatch) {
+    // Fallback: if we don't have a name yet and user sends a capitalized word, assume it's the name
+    extractedData.childName = capitalizedNameMatch[1];
   }
 
   // Match age patterns: "12 years old", "12 yo", "12 yrs", or just "12"
