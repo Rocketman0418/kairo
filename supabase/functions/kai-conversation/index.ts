@@ -64,8 +64,7 @@ Deno.serve(async (req: Request) => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
+        body: JSON.stringify({          contents: [{
             parts: [{ text: systemPrompt }]
           }],
           generationConfig: {
@@ -103,16 +102,14 @@ Deno.serve(async (req: Request) => {
                     },
                     preferredTimeOfDay: {
                       type: "string",
-                      enum: ["morning", "afternoon", "evening", "any"],
                       nullable: true,
-                      description: "General time of day preference. Use 'any' if parent says 'show me all options', 'flexible', 'any time', etc."
+                      description: "General time of day preference: 'morning', 'afternoon', 'evening', or 'any'. Use 'any' if parent says 'show me all options', 'flexible', 'any time', etc."
                     }
                   }
                 },
                 nextState: {
                   type: "string",
-                  enum: ["greeting", "collecting_child_info", "collecting_preferences", "showing_recommendations", "confirming_selection", "collecting_payment"],
-                  description: "What state should the conversation move to next"
+                  description: "What state should the conversation move to next: 'greeting', 'collecting_child_info', 'collecting_preferences', 'showing_recommendations', 'confirming_selection', 'collecting_payment'"
                 },
                 reasoningNotes: {
                   type: "string",
@@ -291,9 +288,7 @@ async function loadContextFiles(currentState: string): Promise<string> {
     'showing_recommendations': ['registration-flow.md'],
   };
 
-  const filesToLoad = [...baseFiles, ...(stateSpecificFiles[currentState] || [])];
-
-  const contextParts: string[] = [];
+  const filesToLoad = [...baseFiles, ...(stateSpecificFiles[currentState] || [])];  const contextParts: string[] = [];
   for (const filename of filesToLoad) {
     try {
       const content = await Deno.readTextFile(`./context/${filename}`);
