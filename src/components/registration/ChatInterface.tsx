@@ -44,17 +44,23 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
     scrollToBottom();
   }, [messages]);
 
+  const hasAddedInitialMessage = useRef(false);
+
   useEffect(() => {
+    if (hasAddedInitialMessage.current) return;
+
     const initialMessage: Message = {
       id: 'initial',
       role: 'assistant',
       content: "Hi! I'm Kai. I'd love to help you register your child for a program. What's your child's name?",
       timestamp: new Date(),
     };
+
     if (messages.length === 0) {
       addSystemMessage(initialMessage.content);
+      hasAddedInitialMessage.current = true;
     }
-  }, []);
+  }, [messages.length, addSystemMessage]);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
