@@ -141,7 +141,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const nextState = determineNextState(context.currentState, extractedData);
+    const nextState = determineNextState(context.currentState, extractedData, updatedContext);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -203,7 +203,20 @@ function buildSystemPrompt(message: string, context: any): string {
     'collecting_child_info': context.childName
       ? 'You already have the child\'s name. Now ask for their age in years (simple and direct).'
       : 'Ask for the child\'s first name.',
-    'collecting_preferences': 'You have the name and age. Now ask about their schedule preferences (weekdays vs weekends, morning vs afternoon).',
+    'collecting_preferences': (() => {
+      const hasDays = context.preferredDays;
+      const hasTime = context.preferredTimeOfDay || context.preferredTime;
+
+      if (hasDays && hasTime) {
+        return 'You have all schedule info. Thank them and say you\'ll find matching sessions.';
+      } else if (hasDays && !hasTime) {
+        return 'You have their preferred days. Now ask what time of day works best (morning, afternoon, evening, or specific time).';
+      } else if (!hasDays && hasTime) {
+        return 'You have their preferred time. Now ask which days of the week work best.';
+      } else {
+        return 'Ask which days of the week work best for them (be open-ended).';
+      }
+    })(),
     'showing_recommendations': 'Provide session recommendations based on what you know.',
     'confirming_selection': 'Confirm the selected session details before proceeding to payment.',
     'collecting_payment': 'Guide them through payment process.',
@@ -216,14 +229,30 @@ function buildSystemPrompt(message: string, context: any): string {
   const knownInfo: string[] = [];
   if (context.childName) knownInfo.push(`✓ Child's name: ${context.childName}`);
   if (context.childAge) knownInfo.push(`✓ Child's age: ${context.childAge} years old`);
-  if (context.preferredDays) knownInfo.push(`✓ Preferred days: ${context.preferredDays}`);
-  if (context.preferredTimeOfDay) knownInfo.push(`✓ Preferred time: ${context.preferredTimeOfDay}`);
+  if (context.preferredDays) {
+    const daysArray = Array.isArray(context.preferredDays) ? context.preferredDays : [context.preferredDays];
+    const dayNames = daysArray.map((d: number) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d]);
+    knownInfo.push(`✓ Preferred days: ${dayNames.join(', ')}`);
+  }
+  if (context.preferredTime) knownInfo.push(`✓ Preferred time: ${context.preferredTime}`);
+  if (context.preferredTimeOfDay) knownInfo.push(`✓ Time of day: ${context.preferredTimeOfDay}`);
 
   const knownInfoText = knownInfo.length > 0
     ? `Information you ALREADY HAVE (don't ask again):\n${knownInfo.join('\n')}`
     : 'You don\'t have any information yet - start collecting it.';
 
-  return `You are Kai, a friendly and efficient AI assistant helping parents register their children for youth sports programs.\n\n${knownInfoText}\n\nCurrent conversation state: ${context.currentState}\nYour next action: ${instruction}\n\nParent's latest message: "${message}"\n\nIMPORTANT RULES:\n- If you already have a piece of information (marked with ✓ above), DO NOT ask for it again\n- Move directly to the next piece of information you need\n- Keep responses under 3 sentences\n- Be warm but efficient - parents are busy\n\nRespond now:`;
+  // Determine what's missing
+  const missingInfo: string[] = [];
+  if (!context.childName) missingInfo.push('child\'s name');
+  if (!context.childAge) missingInfo.push('child\'s age');
+  if (!context.preferredDays) missingInfo.push('preferred days');
+  if (!context.preferredTimeOfDay && !context.preferredTime) missingInfo.push('preferred time of day');
+
+  const nextStepGuidance = missingInfo.length > 0
+    ? `\nYou still need: ${missingInfo.join(', ')}\nAsk for the NEXT missing item only (one at a time).`
+    : '\nYou have all basic information. Move to showing recommendations.';
+
+  return `You are Kai, a friendly and efficient AI assistant helping parents register their children for youth sports programs.\n\n${knownInfoText}${nextStepGuidance}\n\nCurrent conversation state: ${context.currentState}\nYour next action: ${instruction}\n\nParent's latest message: "${message}"\n\nCRITICAL RULES:\n- NEVER ask for information you already have (marked with ✓)\n- Ask for ONE missing piece of information at a time\n- If you have days AND time, thank them and say you'll find matching sessions\n- Keep responses under 3 sentences\n- Be warm but efficient\n\nRespond now:`;
 }
 
 function extractDataFromMessage(message: string, context?: any): Record<string, any> {
@@ -274,41 +303,74 @@ function extractDataFromMessage(message: string, context?: any): Record<string, 
     }
   }
 
-  const timePatterns = [
-    { pattern: /morning/i, value: 'morning' },
-    { pattern: /afternoon/i, value: 'afternoon' },
-    { pattern: /evening/i, value: 'evening' },
-  ];
+  // Extract specific times (e.g., "4pm", "3:30", "16:00")
+  const specificTimeMatch = message.match(/(\d{1,2})(?::(\d{2}))??\s*([ap]m)?/i);
+  if (specificTimeMatch) {
+    let hour = parseInt(specificTimeMatch[1]);
+    const minutes = specificTimeMatch[2] || '00';
+    const ampm = specificTimeMatch[3]?.toLowerCase();
 
-  for (const { pattern, value } of timePatterns) {
-    if (pattern.test(message)) {
-      extractedData.preferredTimeOfDay = value;
-      break;
+    // Convert to 24-hour for comparison
+    if (ampm === 'pm' && hour < 12) hour += 12;
+    if (ampm === 'am' && hour === 12) hour = 0;
+
+    // Store the actual time
+    extractedData.preferredTime = `${hour}:${minutes}`;
+
+    // Also determine time of day category
+    if (hour < 12) {
+      extractedData.preferredTimeOfDay = 'morning';
+    } else if (hour < 17) {
+      extractedData.preferredTimeOfDay = 'afternoon';
+    } else {
+      extractedData.preferredTimeOfDay = 'evening';
+    }
+  }
+
+  // Fallback to general time patterns if no specific time found
+  if (!extractedData.preferredTimeOfDay) {
+    const timePatterns = [
+      { pattern: /morning/i, value: 'morning' },
+      { pattern: /afternoon/i, value: 'afternoon' },
+      { pattern: /evening/i, value: 'evening' },
+    ];
+
+    for (const { pattern, value } of timePatterns) {
+      if (pattern.test(message)) {
+        extractedData.preferredTimeOfDay = value;
+        break;
+      }
     }
   }
 
   return extractedData;
 }
 
-function determineNextState(currentState: string, extractedData: Record<string, any>): string {
+function determineNextState(currentState: string, extractedData: Record<string, any>, fullContext?: any): string {
   switch (currentState) {
     case 'idle':
     case 'greeting':
       return 'collecting_child_info';
 
     case 'collecting_child_info':
-      if (extractedData.childName && extractedData.childAge) {
+      // Move to preferences only when we have BOTH name and age
+      const hasName = extractedData.childName || fullContext?.childName;
+      const hasAge = extractedData.childAge || fullContext?.childAge;
+
+      if (hasName && hasAge) {
         return 'collecting_preferences';
-      } else if (extractedData.childName) {
-        return 'collecting_child_info';
       }
-      return currentState;
+      return 'collecting_child_info';
 
     case 'collecting_preferences':
-      if (extractedData.preferredDays || extractedData.preferredTimeOfDay) {
+      // Move to recommendations only when we have BOTH days and time
+      const hasDays = extractedData.preferredDays || fullContext?.preferredDays;
+      const hasTime = extractedData.preferredTimeOfDay || extractedData.preferredTime || fullContext?.preferredTimeOfDay || fullContext?.preferredTime;
+
+      if (hasDays && hasTime) {
         return 'showing_recommendations';
       }
-      return currentState;
+      return 'collecting_preferences';
 
     case 'showing_recommendations':
       return 'confirming_selection';
