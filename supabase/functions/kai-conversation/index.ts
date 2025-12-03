@@ -59,21 +59,16 @@ Deno.serve(async (req: Request) => {
 
     const systemPrompt = buildSystemPrompt(message, context, contextContent);
 
-    const geminiHeaders = new Headers();
-    geminiHeaders.append('Content-Type', 'application/json');
-
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(GEMINI_API_KEY.trim())}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + GEMINI_API_KEY,
       {
         method: 'POST',
-        headers: geminiHeaders,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{
             parts: [{ text: systemPrompt }]
           }],
           generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2000,
             responseMimeType: "application/json",
             responseSchema: {
               type: "object",
@@ -99,12 +94,12 @@ Deno.serve(async (req: Request) => {
                       type: "array",
                       items: { type: "number" },
                       nullable: true,
-                      description: "Array of day numbers: Sunday=0, Monday=1, etc. Use [0,1,2,3,4,5,6] if parent says 'show me all options' or 'flexible'"
+                      description: "Array of day numbers (0=Sunday, 1=Monday, etc.). Use ALL days [0,1,2,3,4,5,6] if parent says 'show all options' or 'flexible'."
                     },
                     preferredTime: {
                       type: "string",
                       nullable: true,
-                      description: "24-hour format HH:MM (e.g., 16:00 for 4pm)"
+                      description: "Specific time in HH:MM format (24-hour)"
                     },
                     preferredTimeOfDay: {
                       type: "string",
@@ -291,121 +286,78 @@ async function loadContextFiles(currentState: string): Promise<string> {
 
   const stateSpecificFiles: Record<string, string[]> = {
     'greeting': ['registration-flow.md'],
-    'collecting_child_info': ['registration-flow.md', 'data-extraction.md'],
-    'collecting_preferences': ['registration-flow.md', 'data-extraction.md'],
-    'showing_recommendations': ['registration-flow.md', 'error-handling.md'],
-    'confirming_selection': ['error-handling.md'],
-    'collecting_payment': ['error-handling.md'],
+    'collecting_child_info': ['registration-flow.md', 'data-extraction.md', 'error-handling.md'],
+    'collecting_preferences': ['registration-flow.md', 'data-extraction.md', 'error-handling.md'],
+    'showing_recommendations': ['registration-flow.md'],
   };
 
-  const filesToLoad = [
-    ...baseFiles,
-    ...(stateSpecificFiles[currentState] || [])
-  ];
-
-  const uniqueFiles = [...new Set(filesToLoad)];
+  const filesToLoad = [...baseFiles, ...(stateSpecificFiles[currentState] || [])];
 
   const contextParts: string[] = [];
-  for (const filename of uniqueFiles) {
+  for (const filename of filesToLoad) {
     try {
-      const filePath = `./context/${filename}`;
-      const content = await Deno.readTextFile(filePath);
-      contextParts.push(`\n# Context from ${filename}\n${content}`);
+      const content = await Deno.readTextFile(`./context/${filename}`);
+      contextParts.push(`\n--- ${filename} ---\n${content}`);
     } catch (error) {
-      console.warn(`Could not load context file ${filename}:`, error);
+      console.error(`Could not load ${filename}:`, error);
     }
   }
 
-  return contextParts.join('\n\n---\n');
+  return contextParts.join('\n');
 }
 
-function buildSystemPrompt(message: string, context: any, contextContent: string): string {
-  const knownInfo: string[] = [];
-  if (context.childName) knownInfo.push(`✓ Child's name: ${context.childName}`);
-  if (context.childAge) knownInfo.push(`✓ Child's age: ${context.childAge} years old`);
-  if (context.preferredDays) {
-    const daysArray = Array.isArray(context.preferredDays) ? context.preferredDays : [context.preferredDays];
-    const dayNames = daysArray.map((d: number) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d]);
-    knownInfo.push(`✓ Preferred days: ${dayNames.join(', ')}`);
-  }
-  if (context.preferredTime) knownInfo.push(`✓ Preferred time: ${context.preferredTime}`);
-  if (context.preferredTimeOfDay) knownInfo.push(`✓ Time of day: ${context.preferredTimeOfDay}`);
+function buildSystemPrompt(userMessage: string, context: any, contextContent: string): string {
+  return `You are Kai, a conversational AI helping parents register their children for youth sports programs.
 
-  const knownInfoText = knownInfo.length > 0
-    ? `## Information You Already Have (DO NOT ask again):\n${knownInfo.join('\n')}`
-    : '## You have no information yet - start collecting it.';
+## CURRENT CONVERSATION STATE: ${context.currentState}
 
-  const missingInfo: string[] = [];
-  if (!context.childName) missingInfo.push('child\'s name');
-  if (!context.childAge) missingInfo.push('child\'s age');
-  if (!context.preferredDays) missingInfo.push('preferred days');
-  if (!context.preferredTimeOfDay && !context.preferredTime) missingInfo.push('preferred time of day');
+## WHAT YOU KNOW SO FAR:
+- Child Name: ${context.childName || 'unknown'}
+- Child Age: ${context.childAge || 'unknown'}
+- Preferred Days: ${context.preferredDays ? JSON.stringify(context.preferredDays) : 'unknown'}
+- Preferred Time: ${context.preferredTime || 'unknown'}
+- Preferred Time of Day: ${context.preferredTimeOfDay || 'unknown'}
 
-  const missingInfoText = missingInfo.length > 0
-    ? `## What You Still Need:\n${missingInfo.map(item => `- ${item}`).join('\n')}\n\n**Ask for ONE missing item at a time.**`
-    : '## You have all required information!\nMove to showing recommendations.';
-
-  return `# Your Task
-You are Kai, helping a parent register their child for youth sports programs.
-
-${knownInfoText}
-
-${missingInfoText}
-
-# Current Conversation Context
-- **Current State**: ${context.currentState}
-- **Parent's Latest Message**: "${message}"
-
+## CONTEXT & GUIDELINES:
 ${contextContent}
 
-# Your Response Requirements
+## USER'S LATEST MESSAGE:
+"${userMessage}"
 
-You must return a JSON object with:
-1. **message**: Your conversational response (2-3 sentences max)
-2. **extractedData**: Any data you extracted from the parent's message
-   - Set fields to null if not mentioned
-   - Only extract what the parent explicitly said
-3. **nextState**: The next conversation state
-4. **reasoningNotes**: Brief explanation of your extraction and state decision
+## YOUR TASK:
+1. Extract any new data from the user's message (name, age, day preferences, time preferences)
+2. Provide a warm, conversational response (2-3 sentences max)
+3. Determine the next conversation state
+4. If moving to 'showing_recommendations', ensure you have: childAge AND (preferredDays OR preferredTimeOfDay)
 
-# Critical Rules
-- NEVER ask for information you already have (marked with ✓)
-- Extract ALL relevant data from the message
-- If parent provides multiple pieces of info, acknowledge ALL before asking for more
-- Move to next state when you have everything needed for current state
-- Keep your message warm, brief, and efficient
-- **SPECIAL**: If parent says "show me all options", "I'm flexible", "any day/time works":
-  - Extract preferredDays: [0,1,2,3,4,5,6] (all days)
-  - Extract preferredTimeOfDay: "any"
-  - Move to showing_recommendations state
-  - Respond: "Great! Let me show you all the available options for [child name]."
+IMPORTANT EXTRACTION RULES:
+- "Weekend mornings" = preferredDays: [0, 6], preferredTimeOfDay: "morning"
+- "Weekday afternoons" = preferredDays: [1, 2, 3, 4, 5], preferredTimeOfDay: "afternoon"
+- "Show me all options" = preferredDays: [0,1,2,3,4,5,6], preferredTimeOfDay: "any"
 
-Now respond:`;
+Respond with valid JSON matching the required schema.`;
 }
 
 function getQuickReplies(state: string): string[] {
-  switch (state) {
-    case 'collecting_preferences':
-      return ['Weekday afternoons', 'Weekend mornings', 'Show me all options'];
-    case 'showing_recommendations':
-      return ['Tell me more', 'See other times', 'This looks perfect'];
-    case 'confirming_selection':
-      return ['Yes, sign up!', 'Go back', 'Tell me more about the coach'];
-    default:
-      return [];
-  }
+  const replies: Record<string, string[]> = {
+    'greeting': [],
+    'collecting_child_info': [],
+    'collecting_preferences': ['Weekday afternoons', 'Weekend mornings', 'Show me all options'],
+    'showing_recommendations': ['Tell me more', 'See other times', 'This looks perfect'],
+    'confirming_selection': ['Yes, sign me up!', 'Show me other options'],
+  };
+
+  return replies[state] || [];
 }
 
 function calculateProgress(state: string): number {
   const stateProgress: Record<string, number> = {
-    'idle': 0,
-    'greeting': 10,
-    'collecting_child_info': 25,
-    'collecting_preferences': 50,
-    'showing_recommendations': 75,
-    'confirming_selection': 85,
-    'collecting_payment': 95,
-    'confirmed': 100,
+    'greeting': 0,
+    'collecting_child_info': 20,
+    'collecting_preferences': 40,
+    'showing_recommendations': 60,
+    'confirming_selection': 80,
+    'collecting_payment': 90,
   };
 
   return stateProgress[state] || 0;
