@@ -102,7 +102,6 @@ export async function sendMessageToKai(
     }
 
     const data = await response.json();
-    console.log('Kai response data:', JSON.stringify(data, null, 2));
     return data;
   } catch (error) {
     console.error('Kai service error:', error);

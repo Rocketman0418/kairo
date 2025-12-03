@@ -82,14 +82,14 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
 
   if (showFallbackForm) {
     return (
-      <div className="flex flex-col h-[600px] max-w-2xl mx-auto bg-white rounded-lg shadow-lg">
-        <div className="bg-blue-600 text-white p-4 rounded-t-lg">
+      <div className="flex flex-col h-[600px] max-w-2xl mx-auto bg-[#1a2332] rounded-lg shadow-2xl border border-gray-800">
+        <div className="bg-gradient-to-r from-[#6366f1] to-[#06b6d4] text-white p-4 rounded-t-lg">
           <h2 className="text-xl font-semibold">Complete Your Registration</h2>
           <p className="text-sm text-blue-100">Just a few more details needed</p>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
           <div className="text-center py-12">
-            <p className="text-gray-600 mb-4">Form fallback coming soon...</p>
+            <p className="text-gray-300 mb-4">Form fallback coming soon...</p>
             <p className="text-sm text-gray-500">For now, please refresh to start over.</p>
           </div>
         </div>
@@ -98,22 +98,22 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
   }
 
   return (
-    <div className="flex flex-col h-[600px] max-w-2xl mx-auto bg-white rounded-lg shadow-lg">
-      <div className="bg-blue-600 text-white p-4 rounded-t-lg">
+    <div className="flex flex-col h-[600px] max-w-2xl mx-auto bg-[#1a2332] rounded-lg shadow-2xl border border-gray-800">
+      <div className="bg-gradient-to-r from-[#6366f1] to-[#06b6d4] text-white p-4 rounded-t-lg">
         <h2 className="text-xl font-semibold">Register with Kai</h2>
         <p className="text-sm text-blue-100">Quick registration in 3 minutes</p>
       </div>
 
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 mx-4 mt-4">
+        <div className="bg-red-900/20 border-l-4 border-red-500 p-4 mx-4 mt-4">
           <div className="flex items-center">
-            <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-            <p className="text-sm text-red-700">{error}</p>
+            <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+            <p className="text-sm text-red-300">{error}</p>
           </div>
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0f1419]">
         {messages.map((message) => (
           <MessageBubble
             key={message.id}
@@ -129,14 +129,14 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
         ))}
         {isLoading && (
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#6366f1] to-[#06b6d4] flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
               K
             </div>
-            <div className="bg-gray-100 rounded-lg px-4 py-3 max-w-[70%]">
+            <div className="bg-[#1a2332] border border-gray-800 rounded-lg px-4 py-3 max-w-[70%]">
               <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div className="w-2 h-2 bg-[#6366f1] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-[#8b5cf6] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-[#06b6d4] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
               </div>
             </div>
           </div>
@@ -144,7 +144,7 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-4 border-t border-gray-800 bg-[#1a2332]">
         <div className="flex gap-2">
           <Input
             value={inputValue}

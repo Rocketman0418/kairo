@@ -11,20 +11,10 @@ export function MessageBubble({ message, onQuickReply, onSelectSession }: Messag
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
-  if (!isUser && !isSystem) {
-    console.log('MessageBubble rendering assistant message:', {
-      messageId: message.id,
-      hasMetadata: !!message.metadata,
-      hasRecommendations: !!message.metadata?.recommendations,
-      recommendationsLength: message.metadata?.recommendations?.length || 0,
-      recommendations: message.metadata?.recommendations,
-    });
-  }
-
   if (isSystem) {
     return (
       <div className="flex justify-center">
-        <div className="bg-gray-100 text-gray-600 text-sm px-4 py-2 rounded-full">
+        <div className="bg-gray-800 text-gray-400 text-sm px-4 py-2 rounded-full border border-gray-700">
           {message.content}
         </div>
       </div>
@@ -35,7 +25,7 @@ export function MessageBubble({ message, onQuickReply, onSelectSession }: Messag
     <div className="space-y-3">
       <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} items-start gap-3`}>
         {!isUser && (
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#6366f1] to-[#06b6d4] flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
             K
           </div>
         )}
@@ -43,8 +33,8 @@ export function MessageBubble({ message, onQuickReply, onSelectSession }: Messag
           className={`
             rounded-lg px-4 py-3 max-w-[70%]
             ${isUser
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-900'
+              ? 'bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white'
+              : 'bg-[#1a2332] text-gray-200 border border-gray-800'
             }
           `}
         >
@@ -57,7 +47,7 @@ export function MessageBubble({ message, onQuickReply, onSelectSession }: Messag
                 <button
                   key={index}
                   onClick={() => onQuickReply?.(reply)}
-                  className="px-3 py-1 bg-white text-blue-600 rounded-full text-sm hover:bg-blue-50 transition-colors border border-blue-200"
+                  className="px-3 py-1 bg-[#0f1419] text-[#06b6d4] rounded-full text-sm hover:bg-[#1a2332] transition-colors border border-[#06b6d4]/30"
                 >
                   {reply}
                 </button>
@@ -66,7 +56,7 @@ export function MessageBubble({ message, onQuickReply, onSelectSession }: Messag
           )}
         </div>
         {isUser && (
-          <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#10b981] to-[#06b6d4] flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
             U
           </div>
         )}
