@@ -433,7 +433,6 @@ async function fetchMatchingSessions(
       )
     `)
     .eq('status', 'active')
-    .lt('enrolled_count', supabase.raw('capacity'))
     .gte('start_date', new Date().toISOString().split('T')[0]);
 
   if (error) {
@@ -447,6 +446,10 @@ async function fetchMatchingSessions(
   }
 
   const filtered = sessions.filter((session: any) => {
+    if (session.enrolled_count >= session.capacity) {
+      return false;
+    }
+
     const program = session.program;
     if (!program || !program.age_range) return false;
 
