@@ -15,19 +15,27 @@ interface KaiRequest {
     organizationId: string;
     familyId?: string;
     currentState: string;
+    childName?: string;
+    childAge?: number;
+    preferredDays?: number[];
+    preferredTime?: string;
+    preferredTimeOfDay?: string;
     children?: any[];
     preferences?: any;
   };
 }
 
-interface GeminiResponse {
-  candidates: Array<{
-    content: {
-      parts: Array<{
-        text: string;
-      }>;
-    };
-  }>;
+interface GeminiStructuredResponse {
+  message: string;
+  extractedData: {
+    childName?: string | null;
+    childAge?: number | null;
+    preferredDays?: number[] | null;
+    preferredTime?: string | null;
+    preferredTimeOfDay?: 'morning' | 'afternoon' | 'evening' | null;
+  };
+  nextState: 'greeting' | 'collecting_child_info' | 'collecting_preferences' | 'showing_recommendations' | 'confirming_selection' | 'collecting_payment';
+  reasoningNotes?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -47,23 +55,18 @@ Deno.serve(async (req: Request) => {
     const requestData: KaiRequest = await req.json();
     const { message, conversationId, context } = requestData;
 
-    // CRITICAL FIX: Extract data FIRST, then merge into context BEFORE calling Gemini
-    const extractedData = extractDataFromMessage(message, context);
+    // Load relevant context files based on conversation state
+    const contextContent = await loadContextFiles(context.currentState);
 
-    // Merge extracted data into context so Gemini knows what we just learned
-    const updatedContext = {
-      ...context,
-      ...extractedData,
-    };
-
-    // Now build the prompt with the UPDATED context that includes what we just extracted
-    const systemPrompt = buildSystemPrompt(message, updatedContext);
+    // Build the system prompt with context and current data
+    const systemPrompt = buildSystemPrompt(message, context, contextContent);
 
     const geminiHeaders = new Headers();
     geminiHeaders.append('Content-Type', 'application/json');
 
+    // Use structured output - Gemini extracts data AND responds
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(GEMINI_API_KEY.trim())}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(GEMINI_API_KEY.trim())}`,
       {
         method: 'POST',
         headers: geminiHeaders,
@@ -74,14 +77,59 @@ Deno.serve(async (req: Request) => {
           generationConfig: {
             temperature: 0.7,
             maxOutputTokens: 2000,
-            topP: 0.95,
-            topK: 40,
-          },
-          systemInstruction: {
-            parts: [{
-              text: `You are Kai, an AI assistant for Kairo - a youth sports registration platform.\n\nYour personality:\n- Warm, friendly, and empathetic (like talking to a helpful neighbor)\n- Efficient and respectful of parents' time\n- Patient and understanding (parents are often distracted)\n- Positive and encouraging about youth activities\n\nYour constraints:\n- Ask ONE question at a time (parents may be multitasking)\n- Keep responses to 2-3 sentences maximum\n- Use natural, conversational language (avoid formal/robotic tone)\n- Focus on gathering: child's name, age, and schedule preferences\n- NEVER ask to confirm information that was just provided - move to the next question\n- If parent gives you the child's name, immediately ask for age (don't confirm the name)\n- If parent gives you the age, immediately ask for schedule preferences (don't confirm the age)\n\nYour goal:\n- Help parents complete registration in under 5 minutes\n- Make the process feel easy and stress-free\n- Build trust and confidence in the platform`
-            }]
-          },
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "object",
+              properties: {
+                message: {
+                  type: "string",
+                  description: "Your conversational response to the parent (2-3 sentences max)"
+                },
+                extractedData: {
+                  type: "object",
+                  properties: {
+                    childName: {
+                      type: "string",
+                      nullable: true,
+                      description: "Child's first name if mentioned"
+                    },
+                    childAge: {
+                      type: "number",
+                      nullable: true,
+                      description: "Child's age in years (2-18)"
+                    },
+                    preferredDays: {
+                      type: "array",
+                      items: { type: "number" },
+                      nullable: true,
+                      description: "Array of day numbers: Sunday=0, Monday=1, etc."
+                    },
+                    preferredTime: {
+                      type: "string",
+                      nullable: true,
+                      description: "24-hour format HH:MM (e.g., 16:00 for 4pm)"
+                    },
+                    preferredTimeOfDay: {
+                      type: "string",
+                      enum: ["morning", "afternoon", "evening"],
+                      nullable: true,
+                      description: "General time of day preference"
+                    }
+                  }
+                },
+                nextState: {
+                  type: "string",
+                  enum: ["greeting", "collecting_child_info", "collecting_preferences", "showing_recommendations", "confirming_selection", "collecting_payment"],
+                  description: "What state should the conversation move to next"
+                },
+                reasoningNotes: {
+                  type: "string",
+                  description: "Brief note about what you extracted and why you chose this next state"
+                }
+              },
+              required: ["message", "extractedData", "nextState"]
+            }
+          }
         }),
       }
     );
@@ -92,35 +140,49 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Gemini API failed: ${geminiResponse.status}`);
     }
 
-    const geminiData: GeminiResponse = await geminiResponse.json();
-    console.log('Gemini response:', JSON.stringify(geminiData));
+    const geminiData = await geminiResponse.json();
+    console.log('Gemini structured response:', JSON.stringify(geminiData));
 
     if (!geminiData.candidates || geminiData.candidates.length === 0) {
-      console.error('No candidates in Gemini response:', JSON.stringify(geminiData));
-      throw new Error('Gemini returned no candidates - possibly blocked or filtered');
+      throw new Error('Gemini returned no candidates');
     }
 
     const candidate = geminiData.candidates[0];
-    const finishReason = (geminiData.candidates[0] as any).finishReason;
-
-    if (finishReason === 'MAX_TOKENS' || finishReason === 'RECITATION') {
-      console.error('Gemini hit token limit or recitation:', JSON.stringify(geminiData));
-      throw new Error('AI response was cut off - please try rephrasing your message');
-    }
-
     if (!candidate?.content?.parts || candidate.content.parts.length === 0) {
-      console.error('No parts in Gemini response:', JSON.stringify(geminiData));
-      throw new Error('Gemini response missing content - possibly filtered');
+      throw new Error('Gemini response missing content');
     }
 
     if (!candidate.content.parts[0]?.text) {
-      console.error('No text in first part:', JSON.stringify(geminiData));
-      throw new Error('Gemini response missing text content');
+      throw new Error('Gemini response missing text');
     }
 
-    const aiMessage = candidate.content.parts[0].text;
+    // Parse the structured JSON response
+    const structuredResponse: GeminiStructuredResponse = JSON.parse(candidate.content.parts[0].text);
 
-    if (extractedData.childAge && (extractedData.childAge < 2 || extractedData.childAge > 18)) {
+    console.log('Parsed structured response:', structuredResponse);
+    console.log('Reasoning:', structuredResponse.reasoningNotes);
+
+    // Merge extracted data into context (only non-null values)
+    const updatedContext = { ...context };
+    if (structuredResponse.extractedData.childName) {
+      updatedContext.childName = structuredResponse.extractedData.childName;
+    }
+    if (structuredResponse.extractedData.childAge) {
+      updatedContext.childAge = structuredResponse.extractedData.childAge;
+    }
+    if (structuredResponse.extractedData.preferredDays) {
+      updatedContext.preferredDays = structuredResponse.extractedData.preferredDays;
+    }
+    if (structuredResponse.extractedData.preferredTime) {
+      updatedContext.preferredTime = structuredResponse.extractedData.preferredTime;
+    }
+    if (structuredResponse.extractedData.preferredTimeOfDay) {
+      updatedContext.preferredTimeOfDay = structuredResponse.extractedData.preferredTimeOfDay;
+    }
+
+    // Age validation
+    if (structuredResponse.extractedData.childAge &&
+        (structuredResponse.extractedData.childAge < 2 || structuredResponse.extractedData.childAge > 18)) {
       return new Response(
         JSON.stringify({
           success: true,
@@ -141,17 +203,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const nextState = determineNextState(context.currentState, extractedData, updatedContext);
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Update conversation with merged context (includes extracted data)
+    // Update conversation with merged context
     await supabase
       .from('conversations')
       .update({
-        state: nextState,
+        state: structuredResponse.nextState,
         context: updatedContext,
         updated_at: new Date().toISOString(),
       })
@@ -160,11 +220,11 @@ Deno.serve(async (req: Request) => {
     const response = {
       success: true,
       response: {
-        message: aiMessage,
-        nextState: nextState,
-        extractedData: extractedData,
-        quickReplies: getQuickReplies(nextState),
-        progress: calculateProgress(nextState),
+        message: structuredResponse.message,
+        nextState: structuredResponse.nextState,
+        extractedData: structuredResponse.extractedData,
+        quickReplies: getQuickReplies(structuredResponse.nextState),
+        progress: calculateProgress(structuredResponse.nextState),
       },
     };
 
@@ -197,35 +257,48 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-function buildSystemPrompt(message: string, context: any): string {
-  const stateInstructions = {
-    'greeting': 'Warmly greet the parent and ask for their child\'s first name.',
-    'collecting_child_info': context.childName
-      ? 'You already have the child\'s name. Now ask for their age in years (simple and direct).'
-      : 'Ask for the child\'s first name.',
-    'collecting_preferences': (() => {
-      const hasDays = context.preferredDays;
-      const hasTime = context.preferredTimeOfDay || context.preferredTime;
+async function loadContextFiles(currentState: string): Promise<string> {
+  // Always load core context files
+  const baseFiles = [
+    'communication-style.md',
+    'business-rules.md',
+  ];
 
-      if (hasDays && hasTime) {
-        return 'You have all schedule info. Thank them and say you\'ll find matching sessions.';
-      } else if (hasDays && !hasTime) {
-        return 'You have their preferred days. Now ask what time of day works best (morning, afternoon, evening, or specific time).';
-      } else if (!hasDays && hasTime) {
-        return 'You have their preferred time. Now ask which days of the week work best.';
-      } else {
-        return 'Ask which days of the week work best for them (be open-ended).';
-      }
-    })(),
-    'showing_recommendations': 'Provide session recommendations based on what you know.',
-    'confirming_selection': 'Confirm the selected session details before proceeding to payment.',
-    'collecting_payment': 'Guide them through payment process.',
+  // Load state-specific context
+  const stateSpecificFiles: Record<string, string[]> = {
+    'greeting': ['registration-flow.md'],
+    'collecting_child_info': ['registration-flow.md', 'data-extraction.md'],
+    'collecting_preferences': ['registration-flow.md', 'data-extraction.md'],
+    'showing_recommendations': ['registration-flow.md', 'error-handling.md'],
+    'confirming_selection': ['error-handling.md'],
+    'collecting_payment': ['error-handling.md'],
   };
 
-  const instruction = stateInstructions[context.currentState as keyof typeof stateInstructions] ||
-    'Continue the conversation naturally.';
+  const filesToLoad = [
+    ...baseFiles,
+    ...(stateSpecificFiles[currentState] || [])
+  ];
 
-  // Build a summary of what we know
+  // Remove duplicates
+  const uniqueFiles = [...new Set(filesToLoad)];
+
+  // Read all context files
+  const contextParts: string[] = [];
+  for (const filename of uniqueFiles) {
+    try {
+      const filePath = `./context/${filename}`;
+      const content = await Deno.readTextFile(filePath);
+      contextParts.push(`\n# Context from ${filename}\n${content}`);
+    } catch (error) {
+      console.warn(`Could not load context file ${filename}:`, error);
+    }
+  }
+
+  return contextParts.join('\n\n---\n');
+}
+
+function buildSystemPrompt(message: string, context: any, contextContent: string): string {
+  // Build summary of known information
   const knownInfo: string[] = [];
   if (context.childName) knownInfo.push(`✓ Child's name: ${context.childName}`);
   if (context.childAge) knownInfo.push(`✓ Child's age: ${context.childAge} years old`);
@@ -238,8 +311,8 @@ function buildSystemPrompt(message: string, context: any): string {
   if (context.preferredTimeOfDay) knownInfo.push(`✓ Time of day: ${context.preferredTimeOfDay}`);
 
   const knownInfoText = knownInfo.length > 0
-    ? `Information you ALREADY HAVE (don't ask again):\n${knownInfo.join('\n')}`
-    : 'You don\'t have any information yet - start collecting it.';
+    ? `## Information You Already Have (DO NOT ask again):\n${knownInfo.join('\n')}`
+    : '## You have no information yet - start collecting it.';
 
   // Determine what's missing
   const missingInfo: string[] = [];
@@ -248,139 +321,41 @@ function buildSystemPrompt(message: string, context: any): string {
   if (!context.preferredDays) missingInfo.push('preferred days');
   if (!context.preferredTimeOfDay && !context.preferredTime) missingInfo.push('preferred time of day');
 
-  const nextStepGuidance = missingInfo.length > 0
-    ? `\nYou still need: ${missingInfo.join(', ')}\nAsk for the NEXT missing item only (one at a time).`
-    : '\nYou have all basic information. Move to showing recommendations.';
+  const missingInfoText = missingInfo.length > 0
+    ? `## What You Still Need:\n${missingInfo.map(item => `- ${item}`).join('\n')}\n\n**Ask for ONE missing item at a time.**`
+    : '## You have all required information!\nMove to showing recommendations.';
 
-  return `You are Kai, a friendly and efficient AI assistant helping parents register their children for youth sports programs.\n\n${knownInfoText}${nextStepGuidance}\n\nCurrent conversation state: ${context.currentState}\nYour next action: ${instruction}\n\nParent's latest message: "${message}"\n\nCRITICAL RULES:\n- NEVER ask for information you already have (marked with ✓)\n- Ask for ONE missing piece of information at a time\n- If you have days AND time, thank them and say you'll find matching sessions\n- Keep responses under 3 sentences\n- Be warm but efficient\n\nRespond now:`;
-}
+  return `# Your Task
+You are Kai, helping a parent register their child for youth sports programs.
 
-function extractDataFromMessage(message: string, context?: any): Record<string, any> {
-  const extractedData: Record<string, any> = {};
+${knownInfoText}
 
-  // Extract child's name - handle multiple patterns
-  const nameWithPhraseMatch = message.match(/(?:name is|called|this is|he'?s|she'?s)\s+([A-Z][a-z]+)/i);
-  const capitalizedNameMatch = message.match(/^([A-Z][a-z]+)$/);
-  const justNameMatch = message.match(/^([A-Z][a-z]{1,15})$/);
+${missingInfoText}
 
-  // If we're in greeting state and user sends just a capitalized word, it's likely the name
-  if (nameWithPhraseMatch) {
-    extractedData.childName = nameWithPhraseMatch[1];
-  } else if (context?.currentState === 'greeting' && justNameMatch) {
-    extractedData.childName = justNameMatch[1];
-  } else if (!context?.childName && capitalizedNameMatch) {
-    // Fallback: if we don't have a name yet and user sends a capitalized word, assume it's the name
-    extractedData.childName = capitalizedNameMatch[1];
-  }
+# Current Conversation Context
+- **Current State**: ${context.currentState}
+- **Parent's Latest Message**: "${message}"
 
-  // Match age patterns: "12 years old", "12 yo", "12 yrs", or just "12"
-  const ageMatchWithWords = message.match(/(\d+)\s*(?:years?\s*old|yo|yrs?)/i);
-  const bareNumberMatch = message.match(/^\s*(\d+)\s*$/);
+${contextContent}
 
-  // If we're in collecting_child_info state and user sends just a number, it's likely the age
-  if (ageMatchWithWords) {
-    extractedData.childAge = parseInt(ageMatchWithWords[1]);
-  } else if (bareNumberMatch && context?.currentState === 'collecting_child_info') {
-    extractedData.childAge = parseInt(bareNumberMatch[1]);
-  }
+# Your Response Requirements
 
-  const dayPatterns = [
-    { pattern: /monday/i, value: 1 },
-    { pattern: /tuesday/i, value: 2 },
-    { pattern: /wednesday/i, value: 3 },
-    { pattern: /thursday/i, value: 4 },
-    { pattern: /friday/i, value: 5 },
-    { pattern: /saturday/i, value: 6 },
-    { pattern: /sunday/i, value: 0 },
-    { pattern: /weekday/i, value: [1, 2, 3, 4, 5] },
-    { pattern: /weekend/i, value: [0, 6] },
-  ];
+You must return a JSON object with:
+1. **message**: Your conversational response (2-3 sentences max)
+2. **extractedData**: Any data you extracted from the parent's message
+   - Set fields to null if not mentioned
+   - Only extract what the parent explicitly said
+3. **nextState**: The next conversation state
+4. **reasoningNotes**: Brief explanation of your extraction and state decision
 
-  for (const { pattern, value } of dayPatterns) {
-    if (pattern.test(message)) {
-      extractedData.preferredDays = Array.isArray(value) ? value : [value];
-      break;
-    }
-  }
+# Critical Rules
+- NEVER ask for information you already have (marked with ✓)
+- Extract ALL relevant data from the message
+- If parent provides multiple pieces of info, acknowledge ALL before asking for more
+- Move to next state when you have everything needed for current state
+- Keep your message warm, brief, and efficient
 
-  // Extract specific times (e.g., "4pm", "3:30", "16:00")
-  const specificTimeMatch = message.match(/(\d{1,2})(?::(\d{2}))??\s*([ap]m)?/i);
-  if (specificTimeMatch) {
-    let hour = parseInt(specificTimeMatch[1]);
-    const minutes = specificTimeMatch[2] || '00';
-    const ampm = specificTimeMatch[3]?.toLowerCase();
-
-    // Convert to 24-hour for comparison
-    if (ampm === 'pm' && hour < 12) hour += 12;
-    if (ampm === 'am' && hour === 12) hour = 0;
-
-    // Store the actual time
-    extractedData.preferredTime = `${hour}:${minutes}`;
-
-    // Also determine time of day category
-    if (hour < 12) {
-      extractedData.preferredTimeOfDay = 'morning';
-    } else if (hour < 17) {
-      extractedData.preferredTimeOfDay = 'afternoon';
-    } else {
-      extractedData.preferredTimeOfDay = 'evening';
-    }
-  }
-
-  // Fallback to general time patterns if no specific time found
-  if (!extractedData.preferredTimeOfDay) {
-    const timePatterns = [
-      { pattern: /morning/i, value: 'morning' },
-      { pattern: /afternoon/i, value: 'afternoon' },
-      { pattern: /evening/i, value: 'evening' },
-    ];
-
-    for (const { pattern, value } of timePatterns) {
-      if (pattern.test(message)) {
-        extractedData.preferredTimeOfDay = value;
-        break;
-      }
-    }
-  }
-
-  return extractedData;
-}
-
-function determineNextState(currentState: string, extractedData: Record<string, any>, fullContext?: any): string {
-  switch (currentState) {
-    case 'idle':
-    case 'greeting':
-      return 'collecting_child_info';
-
-    case 'collecting_child_info':
-      // Move to preferences only when we have BOTH name and age
-      const hasName = extractedData.childName || fullContext?.childName;
-      const hasAge = extractedData.childAge || fullContext?.childAge;
-
-      if (hasName && hasAge) {
-        return 'collecting_preferences';
-      }
-      return 'collecting_child_info';
-
-    case 'collecting_preferences':
-      // Move to recommendations only when we have BOTH days and time
-      const hasDays = extractedData.preferredDays || fullContext?.preferredDays;
-      const hasTime = extractedData.preferredTimeOfDay || extractedData.preferredTime || fullContext?.preferredTimeOfDay || fullContext?.preferredTime;
-
-      if (hasDays && hasTime) {
-        return 'showing_recommendations';
-      }
-      return 'collecting_preferences';
-
-    case 'showing_recommendations':
-      return 'confirming_selection';
-
-    case 'confirming_selection':
-      return 'collecting_payment';
-
-    default:
-      return currentState;
-  }
+Now respond:`;
 }
 
 function getQuickReplies(state: string): string[] {
