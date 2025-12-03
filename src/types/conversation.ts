@@ -12,6 +12,24 @@ export type ConversationState =
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
+export interface SessionRecommendation {
+  sessionId: string;
+  programName: string;
+  programDescription: string;
+  price: number;
+  durationWeeks: number;
+  locationName: string;
+  locationAddress: string;
+  coachName: string;
+  coachRating: number | null;
+  dayOfWeek: string;
+  startTime: string;
+  startDate: string;
+  capacity: number;
+  enrolledCount: number;
+  spotsRemaining: number;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
@@ -22,6 +40,7 @@ export interface Message {
     extractedData?: Record<string, unknown>;
     quickReplies?: string[];
     showFormFallback?: boolean;
+    recommendations?: SessionRecommendation[];
   };
 }
 

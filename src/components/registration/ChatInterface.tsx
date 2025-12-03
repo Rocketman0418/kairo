@@ -123,6 +123,13 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
                 handleSendMessage();
               }, 100);
             }}
+            onSelectSession={(sessionId) => {
+              const sessionMessage = `I'd like to register for session ${sessionId}`;
+              setInputValue(sessionMessage);
+              setTimeout(() => {
+                handleSendMessage();
+              }, 100);
+            }}
           />
         ))}
         {isLoading && (

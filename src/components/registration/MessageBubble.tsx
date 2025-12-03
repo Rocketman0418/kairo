@@ -1,11 +1,13 @@
 import { Message } from '../../types/conversation';
+import { SessionCard } from './SessionCard';
 
 interface MessageBubbleProps {
   message: Message;
   onQuickReply?: (reply: string) => void;
+  onSelectSession?: (sessionId: string) => void;
 }
 
-export function MessageBubble({ message, onQuickReply }: MessageBubbleProps) {
+export function MessageBubble({ message, onQuickReply, onSelectSession }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
@@ -52,6 +54,18 @@ export function MessageBubble({ message, onQuickReply }: MessageBubbleProps) {
           </div>
         )}
       </div>
+
+      {!isUser && message.metadata?.recommendations && message.metadata.recommendations.length > 0 && (
+        <div className="mt-4 space-y-3 max-w-full">
+          {message.metadata.recommendations.map((session) => (
+            <SessionCard
+              key={session.sessionId}
+              session={session}
+              onSelect={(sessionId) => onSelectSession?.(sessionId)}
+            />
+          ))}
+        </div>
+      )}
       {isUser && (
         <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
           U

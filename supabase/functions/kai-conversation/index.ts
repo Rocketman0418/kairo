@@ -55,16 +55,13 @@ Deno.serve(async (req: Request) => {
     const requestData: KaiRequest = await req.json();
     const { message, conversationId, context } = requestData;
 
-    // Load relevant context files based on conversation state
     const contextContent = await loadContextFiles(context.currentState);
 
-    // Build the system prompt with context and current data
     const systemPrompt = buildSystemPrompt(message, context, contextContent);
 
     const geminiHeaders = new Headers();
     geminiHeaders.append('Content-Type', 'application/json');
 
-    // Use structured output - Gemini extracts data AND responds
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(GEMINI_API_KEY.trim())}`,
       {
@@ -156,13 +153,15 @@ Deno.serve(async (req: Request) => {
       throw new Error('Gemini response missing text');
     }
 
-    // Parse the structured JSON response
     const structuredResponse: GeminiStructuredResponse = JSON.parse(candidate.content.parts[0].text);
 
     console.log('Parsed structured response:', structuredResponse);
     console.log('Reasoning:', structuredResponse.reasoningNotes);
 
-    // Merge extracted data into context (only non-null values)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     const updatedContext = { ...context };
     if (structuredResponse.extractedData.childName) {
       updatedContext.childName = structuredResponse.extractedData.childName;
@@ -180,7 +179,6 @@ Deno.serve(async (req: Request) => {
       updatedContext.preferredTimeOfDay = structuredResponse.extractedData.preferredTimeOfDay;
     }
 
-    // Age validation
     if (structuredResponse.extractedData.childAge &&
         (structuredResponse.extractedData.childAge < 2 || structuredResponse.extractedData.childAge > 18)) {
       return new Response(
@@ -203,11 +201,20 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    let recommendations = null;
+    if (structuredResponse.nextState === 'showing_recommendations' &&
+        updatedContext.childAge &&
+        (updatedContext.preferredDays || updatedContext.preferredTimeOfDay)) {
 
-    // Update conversation with merged context
+      recommendations = await fetchMatchingSessions(
+        supabase,
+        context.organizationId,
+        updatedContext.childAge,
+        updatedContext.preferredDays,
+        updatedContext.preferredTimeOfDay
+      );
+    }
+
     await supabase
       .from('conversations')
       .update({
@@ -225,6 +232,7 @@ Deno.serve(async (req: Request) => {
         extractedData: structuredResponse.extractedData,
         quickReplies: getQuickReplies(structuredResponse.nextState),
         progress: calculateProgress(structuredResponse.nextState),
+        recommendations: recommendations,
       },
     };
 
@@ -258,13 +266,11 @@ Deno.serve(async (req: Request) => {
 });
 
 async function loadContextFiles(currentState: string): Promise<string> {
-  // Always load core context files
   const baseFiles = [
     'communication-style.md',
     'business-rules.md',
   ];
 
-  // Load state-specific context
   const stateSpecificFiles: Record<string, string[]> = {
     'greeting': ['registration-flow.md'],
     'collecting_child_info': ['registration-flow.md', 'data-extraction.md'],
@@ -279,10 +285,8 @@ async function loadContextFiles(currentState: string): Promise<string> {
     ...(stateSpecificFiles[currentState] || [])
   ];
 
-  // Remove duplicates
   const uniqueFiles = [...new Set(filesToLoad)];
 
-  // Read all context files
   const contextParts: string[] = [];
   for (const filename of uniqueFiles) {
     try {
@@ -298,7 +302,6 @@ async function loadContextFiles(currentState: string): Promise<string> {
 }
 
 function buildSystemPrompt(message: string, context: any, contextContent: string): string {
-  // Build summary of known information
   const knownInfo: string[] = [];
   if (context.childName) knownInfo.push(`✓ Child's name: ${context.childName}`);
   if (context.childAge) knownInfo.push(`✓ Child's age: ${context.childAge} years old`);
@@ -314,7 +317,6 @@ function buildSystemPrompt(message: string, context: any, contextContent: string
     ? `## Information You Already Have (DO NOT ask again):\n${knownInfo.join('\n')}`
     : '## You have no information yet - start collecting it.';
 
-  // Determine what's missing
   const missingInfo: string[] = [];
   if (!context.childName) missingInfo.push('child\'s name');
   if (!context.childAge) missingInfo.push('child\'s age');
@@ -384,4 +386,113 @@ function calculateProgress(state: string): number {
   };
 
   return stateProgress[state] || 0;
+}
+
+async function fetchMatchingSessions(
+  supabase: any,
+  organizationId: string,
+  childAge: number,
+  preferredDays?: number[],
+  preferredTimeOfDay?: string
+): Promise<any[]> {
+  console.log('Fetching sessions for:', { organizationId, childAge, preferredDays, preferredTimeOfDay });
+
+  const { data: sessions, error } = await supabase
+    .from('sessions')
+    .select(`
+      id,
+      start_date,
+      end_date,
+      day_of_week,
+      start_time,
+      capacity,
+      enrolled_count,
+      status,
+      program:programs (
+        id,
+        name,
+        description,
+        age_range,
+        price_cents,
+        duration_weeks
+      ),
+      location:locations (
+        id,
+        name,
+        address
+      ),
+      coach:staff (
+        id,
+        name,
+        rating
+      )
+    `)
+    .eq('status', 'active')
+    .lt('enrolled_count', supabase.raw('capacity'))
+    .gte('start_date', new Date().toISOString().split('T')[0]);
+
+  if (error) {
+    console.error('Error fetching sessions:', error);
+    return [];
+  }
+
+  if (!sessions || sessions.length === 0) {
+    console.log('No sessions found');
+    return [];
+  }
+
+  const filtered = sessions.filter((session: any) => {
+    const program = session.program;
+    if (!program || !program.age_range) return false;
+
+    const ageRangeMatch = program.age_range.match(/\[(\d+),(\d+)\)/);
+    if (!ageRangeMatch) return false;
+
+    const minAge = parseInt(ageRangeMatch[1]);
+    const maxAge = parseInt(ageRangeMatch[2]);
+
+    if (childAge < minAge || childAge >= maxAge) {
+      return false;
+    }
+
+    if (preferredDays && preferredDays.length > 0) {
+      if (!preferredDays.includes(session.day_of_week)) {
+        return false;
+      }
+    }
+
+    if (preferredTimeOfDay) {
+      const startTime = session.start_time;
+      const hour = parseInt(startTime.split(':')[0]);
+
+      if (preferredTimeOfDay === 'morning' && hour >= 12) return false;
+      if (preferredTimeOfDay === 'afternoon' && (hour < 12 || hour >= 17)) return false;
+      if (preferredTimeOfDay === 'evening' && hour < 17) return false;
+    }
+
+    return true;
+  });
+
+  const mapped = filtered.slice(0, 3).map((session: any) => ({
+    sessionId: session.id,
+    programName: session.program.name,
+    programDescription: session.program.description,
+    ageRange: session.program.age_range,
+    price: session.program.price_cents,
+    durationWeeks: session.program.duration_weeks,
+    locationName: session.location.name,
+    locationAddress: session.location.address,
+    coachName: session.coach?.name || 'TBD',
+    coachRating: session.coach?.rating || null,
+    dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][session.day_of_week],
+    startTime: session.start_time,
+    startDate: session.start_date,
+    endDate: session.end_date,
+    capacity: session.capacity,
+    enrolledCount: session.enrolled_count,
+    spotsRemaining: session.capacity - session.enrolled_count,
+  }));
+
+  console.log(`Found ${mapped.length} matching sessions`);
+  return mapped;
 }

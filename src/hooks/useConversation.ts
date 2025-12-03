@@ -97,6 +97,7 @@ export function useConversation(options: UseConversationOptions) {
             metadata: {
               quickReplies: response.response.quickReplies,
               extractedData: response.response.extractedData,
+              recommendations: response.response.recommendations,
             },
           };
 
