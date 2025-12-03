@@ -89,6 +89,14 @@ export function useConversation(options: UseConversationOptions) {
         });
 
         if (response.success && response.response) {
+          console.log('Creating AI message with metadata:', {
+            quickReplies: response.response.quickReplies,
+            extractedData: response.response.extractedData,
+            recommendations: response.response.recommendations,
+            hasRecommendations: !!response.response.recommendations,
+            recommendationsLength: response.response.recommendations?.length || 0,
+          });
+
           const aiMsg: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
@@ -101,6 +109,7 @@ export function useConversation(options: UseConversationOptions) {
             },
           };
 
+          console.log('AI message created:', aiMsg);
           setMessages((prev) => [...prev, aiMsg]);
 
           const newState = response.response.nextState;

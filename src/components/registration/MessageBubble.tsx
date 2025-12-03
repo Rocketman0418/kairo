@@ -11,6 +11,16 @@ export function MessageBubble({ message, onQuickReply, onSelectSession }: Messag
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
+  if (!isUser && !isSystem) {
+    console.log('MessageBubble rendering assistant message:', {
+      messageId: message.id,
+      hasMetadata: !!message.metadata,
+      hasRecommendations: !!message.metadata?.recommendations,
+      recommendationsLength: message.metadata?.recommendations?.length || 0,
+      recommendations: message.metadata?.recommendations,
+    });
+  }
+
   if (isSystem) {
     return (
       <div className="flex justify-center">
