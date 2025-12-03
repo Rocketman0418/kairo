@@ -60,11 +60,12 @@ Deno.serve(async (req: Request) => {
     const systemPrompt = buildSystemPrompt(message, context, contextContent);
 
     const geminiResponse = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + GEMINI_API_KEY,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=' + GEMINI_API_KEY,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({          contents: [{
+        body: JSON.stringify({
+          contents: [{
             parts: [{ text: systemPrompt }]
           }],
           generationConfig: {
@@ -288,7 +289,9 @@ async function loadContextFiles(currentState: string): Promise<string> {
     'showing_recommendations': ['registration-flow.md'],
   };
 
-  const filesToLoad = [...baseFiles, ...(stateSpecificFiles[currentState] || [])];  const contextParts: string[] = [];
+  const filesToLoad = [...baseFiles, ...(stateSpecificFiles[currentState] || [])];
+
+  const contextParts: string[] = [];
   for (const filename of filesToLoad) {
     try {
       const content = await Deno.readTextFile(`./context/${filename}`);
