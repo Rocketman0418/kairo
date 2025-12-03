@@ -2,9 +2,10 @@ import { Message } from '../../types/conversation';
 
 interface MessageBubbleProps {
   message: Message;
+  onQuickReply?: (reply: string) => void;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, onQuickReply }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
@@ -42,7 +43,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             {message.metadata.quickReplies.map((reply, index) => (
               <button
                 key={index}
-                className="px-3 py-1 bg-white text-blue-600 rounded-full text-sm hover:bg-blue-50 transition-colors"
+                onClick={() => onQuickReply?.(reply)}
+                className="px-3 py-1 bg-white text-blue-600 rounded-full text-sm hover:bg-blue-50 transition-colors border border-blue-200"
               >
                 {reply}
               </button>

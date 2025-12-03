@@ -114,7 +114,16 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble
+            key={message.id}
+            message={message}
+            onQuickReply={(reply) => {
+              setInputValue(reply);
+              setTimeout(() => {
+                handleSendMessage();
+              }, 100);
+            }}
+          />
         ))}
         {isLoading && (
           <div className="flex items-start gap-3">
