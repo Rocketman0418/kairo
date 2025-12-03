@@ -47,7 +47,17 @@ Deno.serve(async (req: Request) => {
     const requestData: KaiRequest = await req.json();
     const { message, conversationId, context } = requestData;
 
-    const systemPrompt = buildSystemPrompt(message, context);
+    // CRITICAL FIX: Extract data FIRST, then merge into context BEFORE calling Gemini
+    const extractedData = extractDataFromMessage(message, context);
+
+    // Merge extracted data into context so Gemini knows what we just learned
+    const updatedContext = {
+      ...context,
+      ...extractedData,
+    };
+
+    // Now build the prompt with the UPDATED context that includes what we just extracted
+    const systemPrompt = buildSystemPrompt(message, updatedContext);
 
     const geminiHeaders = new Headers();
     geminiHeaders.append('Content-Type', 'application/json');
@@ -63,13 +73,13 @@ Deno.serve(async (req: Request) => {
           }],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 5000,
+            maxOutputTokens: 2000,
             topP: 0.95,
-            topK: 64,
+            topK: 40,
           },
           systemInstruction: {
             parts: [{
-              text: `You are Kai, an AI assistant for Kairo - a youth sports registration platform.\n\nYour personality:\n- Warm, friendly, and empathetic (like talking to a helpful neighbor)\n- Efficient and respectful of parents' time\n- Patient and understanding (parents are often distracted)\n- Positive and encouraging about youth activities\n\nYour constraints:\n- Ask ONE question at a time (parents may be multitasking)\n- Keep responses to 2-3 sentences maximum\n- Use natural, conversational language (avoid formal/robotic tone)\n- Focus on gathering: child's name, age, and schedule preferences\n- Never make assumptions - always confirm important details\n\nYour goal:\n- Help parents complete registration in under 5 minutes\n- Make the process feel easy and stress-free\n- Build trust and confidence in the platform`
+              text: `You are Kai, an AI assistant for Kairo - a youth sports registration platform.\n\nYour personality:\n- Warm, friendly, and empathetic (like talking to a helpful neighbor)\n- Efficient and respectful of parents' time\n- Patient and understanding (parents are often distracted)\n- Positive and encouraging about youth activities\n\nYour constraints:\n- Ask ONE question at a time (parents may be multitasking)\n- Keep responses to 2-3 sentences maximum\n- Use natural, conversational language (avoid formal/robotic tone)\n- Focus on gathering: child's name, age, and schedule preferences\n- NEVER ask to confirm information that was just provided - move to the next question\n- If parent gives you the child's name, immediately ask for age (don't confirm the name)\n- If parent gives you the age, immediately ask for schedule preferences (don't confirm the age)\n\nYour goal:\n- Help parents complete registration in under 5 minutes\n- Make the process feel easy and stress-free\n- Build trust and confidence in the platform`
             }]
           },
         }),
@@ -110,8 +120,6 @@ Deno.serve(async (req: Request) => {
 
     const aiMessage = candidate.content.parts[0].text;
 
-    const extractedData = extractDataFromMessage(message, context);
-
     if (extractedData.childAge && (extractedData.childAge < 2 || extractedData.childAge > 18)) {
       return new Response(
         JSON.stringify({
@@ -139,11 +147,12 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Update conversation with merged context (includes extracted data)
     await supabase
       .from('conversations')
       .update({
         state: nextState,
-        context: { ...context, ...extractedData },
+        context: updatedContext,
         updated_at: new Date().toISOString(),
       })
       .eq('id', conversationId);
@@ -191,8 +200,10 @@ Deno.serve(async (req: Request) => {
 function buildSystemPrompt(message: string, context: any): string {
   const stateInstructions = {
     'greeting': 'Warmly greet the parent and ask for their child\'s first name.',
-    'collecting_child_info': 'You have the child\'s name. Now ask for their age in a friendly way.',
-    'collecting_preferences': 'You know the child\'s name and age. Ask about location or day/time preferences.',
+    'collecting_child_info': context.childName
+      ? 'You already have the child\'s name. Now ask for their age in years (simple and direct).'
+      : 'Ask for the child\'s first name.',
+    'collecting_preferences': 'You have the name and age. Now ask about their schedule preferences (weekdays vs weekends, morning vs afternoon).',
     'showing_recommendations': 'Provide session recommendations based on what you know.',
     'confirming_selection': 'Confirm the selected session details before proceeding to payment.',
     'collecting_payment': 'Guide them through payment process.',
@@ -203,16 +214,16 @@ function buildSystemPrompt(message: string, context: any): string {
 
   // Build a summary of what we know
   const knownInfo: string[] = [];
-  if (context.childName) knownInfo.push(`Child's name: ${context.childName}`);
-  if (context.childAge) knownInfo.push(`Child's age: ${context.childAge}`);
-  if (context.preferredDays) knownInfo.push(`Preferred days: ${context.preferredDays}`);
-  if (context.preferredTimeOfDay) knownInfo.push(`Preferred time: ${context.preferredTimeOfDay}`);
+  if (context.childName) knownInfo.push(`✓ Child's name: ${context.childName}`);
+  if (context.childAge) knownInfo.push(`✓ Child's age: ${context.childAge} years old`);
+  if (context.preferredDays) knownInfo.push(`✓ Preferred days: ${context.preferredDays}`);
+  if (context.preferredTimeOfDay) knownInfo.push(`✓ Preferred time: ${context.preferredTimeOfDay}`);
 
   const knownInfoText = knownInfo.length > 0
-    ? knownInfo.join('\n')
-    : 'Nothing yet - this is the start of the conversation';
+    ? `Information you ALREADY HAVE (don't ask again):\n${knownInfo.join('\n')}`
+    : 'You don\'t have any information yet - start collecting it.';
 
-  return `You are Kai, a friendly and efficient AI assistant helping parents register their children for youth sports programs.\n\nYour role:\n- Guide parents through registration in under 5 minutes\n- Ask ONE question at a time (maximum 2-3 sentences)\n- Be warm, empathetic, and conversational\n- Extract key information naturally: child's name, age, location preferences, schedule preferences\n- Be encouraging and positive\n\nCurrent conversation state: ${context.currentState}\nWhat you should do now: ${instruction}\n\nInformation collected so far:\n${knownInfoText}\n\nParent's latest message: "${message}"\n\nRespond naturally and conversationally. Your response should:\n1. Acknowledge what they said\n2. ${instruction}\n3. Be concise (under 3 sentences)\n\nRemember: You're helping busy parents. Keep it simple and friendly.`;
+  return `You are Kai, a friendly and efficient AI assistant helping parents register their children for youth sports programs.\n\n${knownInfoText}\n\nCurrent conversation state: ${context.currentState}\nYour next action: ${instruction}\n\nParent's latest message: "${message}"\n\nIMPORTANT RULES:\n- If you already have a piece of information (marked with ✓ above), DO NOT ask for it again\n- Move directly to the next piece of information you need\n- Keep responses under 3 sentences\n- Be warm but efficient - parents are busy\n\nRespond now:`;
 }
 
 function extractDataFromMessage(message: string, context?: any): Record<string, any> {
