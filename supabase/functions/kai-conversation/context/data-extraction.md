@@ -25,12 +25,16 @@ You must extract structured data from parent messages AND provide a conversation
 ### Preferred Days
 - Convert day names to numbers: Sunday=0, Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6
 - Extract as array of numbers
+- **SPECIAL CASE**: If parent says "show me all options", "any day", "flexible", "whatever works", etc., extract ALL days [0,1,2,3,4,5,6]
 - Examples:
   - "Monday" → preferredDays: [1]
   - "Mondays or Wednesdays" → preferredDays: [1, 3]
   - "Weekdays" → preferredDays: [1, 2, 3, 4, 5]
   - "Weekends" → preferredDays: [6, 0]
   - "Mondays are best, but also Thursday or Friday" → preferredDays: [1, 4, 5]
+  - "Show me all options" → preferredDays: [0, 1, 2, 3, 4, 5, 6]
+  - "Any day works" → preferredDays: [0, 1, 2, 3, 4, 5, 6]
+  - "I'm flexible" → preferredDays: [0, 1, 2, 3, 4, 5, 6]
 
 ### Preferred Time
 - Convert to 24-hour format (HH:MM)
@@ -42,11 +46,15 @@ You must extract structured data from parent messages AND provide a conversation
 
 ### Preferred Time of Day
 - Use for general time preferences (without specific time)
-- Values: "morning", "afternoon", "evening"
+- Values: "morning", "afternoon", "evening", or "any"
+- **SPECIAL CASE**: If parent says "show me all options", "any time", "flexible", set to "any"
 - Examples:
   - "Morning works best" → preferredTimeOfDay: "morning"
   - "After school" → preferredTimeOfDay: "afternoon"
   - "Evenings" → preferredTimeOfDay: "evening"
+  - "Show me all options" → preferredTimeOfDay: "any"
+  - "Any time works" → preferredTimeOfDay: "any"
+  - "We're flexible" → preferredTimeOfDay: "any"
 
 ## Multi-Information Messages
 If parent provides multiple pieces at once:

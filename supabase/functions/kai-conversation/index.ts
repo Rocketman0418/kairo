@@ -32,7 +32,7 @@ interface GeminiStructuredResponse {
     childAge?: number | null;
     preferredDays?: number[] | null;
     preferredTime?: string | null;
-    preferredTimeOfDay?: 'morning' | 'afternoon' | 'evening' | null;
+    preferredTimeOfDay?: 'morning' | 'afternoon' | 'evening' | 'any' | null;
   };
   nextState: 'greeting' | 'collecting_child_info' | 'collecting_preferences' | 'showing_recommendations' | 'confirming_selection' | 'collecting_payment';
   reasoningNotes?: string;
@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
                       type: "array",
                       items: { type: "number" },
                       nullable: true,
-                      description: "Array of day numbers: Sunday=0, Monday=1, etc."
+                      description: "Array of day numbers: Sunday=0, Monday=1, etc. Use [0,1,2,3,4,5,6] if parent says 'show me all options' or 'flexible'"
                     },
                     preferredTime: {
                       type: "string",
@@ -108,9 +108,9 @@ Deno.serve(async (req: Request) => {
                     },
                     preferredTimeOfDay: {
                       type: "string",
-                      enum: ["morning", "afternoon", "evening"],
+                      enum: ["morning", "afternoon", "evening", "any"],
                       nullable: true,
-                      description: "General time of day preference"
+                      description: "General time of day preference. Use 'any' if parent says 'show me all options', 'flexible', 'any time', etc."
                     }
                   }
                 },
@@ -356,6 +356,11 @@ You must return a JSON object with:
 - If parent provides multiple pieces of info, acknowledge ALL before asking for more
 - Move to next state when you have everything needed for current state
 - Keep your message warm, brief, and efficient
+- **SPECIAL**: If parent says "show me all options", "I'm flexible", "any day/time works":
+  - Extract preferredDays: [0,1,2,3,4,5,6] (all days)
+  - Extract preferredTimeOfDay: "any"
+  - Move to showing_recommendations state
+  - Respond: "Great! Let me show you all the available options for [child name]."
 
 Now respond:`;
 }
@@ -461,7 +466,7 @@ async function fetchMatchingSessions(
       }
     }
 
-    if (preferredTimeOfDay) {
+    if (preferredTimeOfDay && preferredTimeOfDay !== 'any') {
       const startTime = session.start_time;
       const hour = parseInt(startTime.split(':')[0]);
 
