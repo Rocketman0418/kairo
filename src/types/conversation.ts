@@ -49,6 +49,11 @@ export interface ConversationContext {
   familyId?: string;
   organizationId: string;
   currentState: ConversationState;
+  childName?: string;
+  childAge?: number;
+  preferredDays?: number[];
+  preferredTime?: string;
+  preferredTimeOfDay?: string;
   children?: Array<{
     firstName: string;
     age?: number;

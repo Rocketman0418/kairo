@@ -109,8 +109,26 @@ export function useConversation(options: UseConversationOptions) {
           const newContext: ConversationContext = {
             ...context,
             currentState: newState,
-            ...response.response.extractedData,
           };
+
+          if (response.response.extractedData) {
+            if (response.response.extractedData.childName) {
+              newContext.childName = response.response.extractedData.childName;
+            }
+            if (response.response.extractedData.childAge) {
+              newContext.childAge = response.response.extractedData.childAge;
+            }
+            if (response.response.extractedData.preferredDays) {
+              newContext.preferredDays = response.response.extractedData.preferredDays;
+            }
+            if (response.response.extractedData.preferredTime) {
+              newContext.preferredTime = response.response.extractedData.preferredTime;
+            }
+            if (response.response.extractedData.preferredTimeOfDay) {
+              newContext.preferredTimeOfDay = response.response.extractedData.preferredTimeOfDay;
+            }
+          }
+
           setContext(newContext);
 
           await supabase
