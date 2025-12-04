@@ -126,6 +126,10 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
               handleSendMessage(sessionMessage);
             }}
             organizationId={organizationId}
+            onSignUp={(sessionId, programName) => {
+              const sessionMessage = `I'd like to register for ${programName}`;
+              handleSendMessage(sessionMessage);
+            }}
           />
         ))}
         {isLoading && (

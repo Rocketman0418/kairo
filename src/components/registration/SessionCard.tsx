@@ -29,9 +29,10 @@ interface SessionCardProps {
   session: SessionRecommendation;
   onSelect: (sessionId: string) => void;
   organizationId: string;
+  onSignUp?: (sessionId: string, programName: string) => void;
 }
 
-export function SessionCard({ session, onSelect, organizationId }: SessionCardProps) {
+export function SessionCard({ session, onSelect, organizationId, onSignUp }: SessionCardProps) {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showCoachModal, setShowCoachModal] = useState(false);
   const [showProgramModal, setShowProgramModal] = useState(false);
@@ -142,6 +143,7 @@ export function SessionCard({ session, onSelect, organizationId }: SessionCardPr
           locationName={session.locationName}
           locationAddress={session.locationAddress}
           organizationId={organizationId}
+          onSignUp={onSignUp}
         />
       )}
 
@@ -153,6 +155,7 @@ export function SessionCard({ session, onSelect, organizationId }: SessionCardPr
           coachName={session.coachName}
           coachRating={session.coachRating}
           organizationId={organizationId}
+          onSignUp={onSignUp}
         />
       )}
 
@@ -162,6 +165,7 @@ export function SessionCard({ session, onSelect, organizationId }: SessionCardPr
         programName={session.programName}
         programDescription={session.programDescription}
         organizationId={organizationId}
+        onSignUp={onSignUp}
       />
     </>
   );

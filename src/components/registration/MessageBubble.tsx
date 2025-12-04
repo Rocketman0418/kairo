@@ -6,9 +6,10 @@ interface MessageBubbleProps {
   onQuickReply?: (reply: string) => void;
   onSelectSession?: (sessionId: string, programName: string) => void;
   organizationId: string;
+  onSignUp?: (sessionId: string, programName: string) => void;
 }
 
-export function MessageBubble({ message, onQuickReply, onSelectSession, organizationId }: MessageBubbleProps) {
+export function MessageBubble({ message, onQuickReply, onSelectSession, organizationId, onSignUp }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
@@ -71,6 +72,7 @@ export function MessageBubble({ message, onQuickReply, onSelectSession, organiza
               session={session}
               onSelect={(sessionId) => onSelectSession?.(sessionId, session.programName)}
               organizationId={organizationId}
+              onSignUp={onSignUp}
             />
           ))}
         </div>
