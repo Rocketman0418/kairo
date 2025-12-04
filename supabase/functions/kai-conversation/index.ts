@@ -218,7 +218,6 @@ Deno.serve(async (req: Request) => {
 
       console.log('Recommendations result:', recommendations);
 
-      // If no results found, ask Gemini to offer alternatives
       if (!recommendations || recommendations.length === 0) {
         console.log('No recommendations found - asking Gemini for alternative suggestions');
 
@@ -517,13 +516,13 @@ async function fetchMatchingSessions(
 
   const mapped = filtered.slice(0, 3).map((session: any) => ({
     sessionId: session.id,
-    programName: session.program.name,
-    programDescription: session.program.description,
-    ageRange: session.program.age_range,
-    price: session.program.price_cents,
-    durationWeeks: session.program.duration_weeks,
-    locationName: session.location.name,
-    locationAddress: session.location.address,
+    programName: session.program?.name || 'Unknown Program',
+    programDescription: session.program?.description || '',
+    ageRange: session.program?.age_range || '[0,18)',
+    price: session.program?.price_cents || 0,
+    durationWeeks: session.program?.duration_weeks || 0,
+    locationName: session.location?.name || 'TBD',
+    locationAddress: session.location?.address || '',
     coachName: session.coach?.name || 'TBD',
     coachRating: session.coach?.rating || null,
     dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][session.day_of_week],
