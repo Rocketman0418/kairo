@@ -20,7 +20,7 @@ function App() {
             </p>
           </div>
 
-          <ChatInterface organizationId="demo-org" />
+          <ChatInterface organizationId="00000000-0000-0000-0000-000000000001" />
 
           <div className="text-center mt-8 text-sm text-gray-500">
             <p>Powered by AI • Secure • Mobile-Friendly • 24/7 Availability</p>

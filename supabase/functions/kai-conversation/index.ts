@@ -387,7 +387,8 @@ async function fetchMatchingSessions(
         description,
         age_range,
         price_cents,
-        duration_weeks
+        duration_weeks,
+        organization_id
       ),
       location:locations (
         id,
@@ -420,6 +421,10 @@ async function fetchMatchingSessions(
 
     const program = session.program;
     if (!program || !program.age_range) return false;
+
+    if (program.organization_id !== organizationId) {
+      return false;
+    }
 
     const ageRangeMatch = program.age_range.match(/\[(\d+),(\d+)\)/);
     if (!ageRangeMatch) return false;

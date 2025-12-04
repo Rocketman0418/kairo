@@ -92,7 +92,7 @@ export async function sendMessageToKai(
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify(request),
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!response.ok) {
