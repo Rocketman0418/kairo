@@ -82,20 +82,29 @@ export function useConversation(options: UseConversationOptions) {
 
         setMessages((prev) => [...prev, userMsg]);
 
+        console.log('=== SENDING TO KAI ===');
+        console.log('Message:', userMessage);
+        console.log('Context being sent:', JSON.stringify(context, null, 2));
+        console.log('======================');
+
         const response = await sendMessageToKai({
           message: userMessage,
           conversationId,
           context,
         });
 
-        console.log('Kai response:', {
-          success: response.success,
-          nextState: response.response?.nextState,
-          extractedData: response.response?.extractedData,
-          hasRecommendations: !!response.response?.recommendations,
-          recommendationsCount: response.response?.recommendations?.length || 0,
-          recommendations: response.response?.recommendations,
-        });
+        console.log('=== KAI RESPONSE ===');
+        console.log('Success:', response.success);
+        console.log('Next State:', response.response?.nextState);
+        console.log('Extracted Data:', JSON.stringify(response.response?.extractedData, null, 2));
+        console.log('Has Recommendations:', !!response.response?.recommendations);
+        console.log('Recommendations Count:', response.response?.recommendations?.length || 0);
+        if (response.response?.recommendations && response.response.recommendations.length > 0) {
+          console.log('First Recommendation:', response.response.recommendations[0]);
+        } else {
+          console.log('NO RECOMMENDATIONS RETURNED - Check edge function logs in Supabase dashboard');
+        }
+        console.log('====================');
 
         if (response.success && response.response) {
           const aiMsg: Message = {
