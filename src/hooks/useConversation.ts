@@ -88,6 +88,15 @@ export function useConversation(options: UseConversationOptions) {
           context,
         });
 
+        console.log('Kai response:', {
+          success: response.success,
+          nextState: response.response?.nextState,
+          extractedData: response.response?.extractedData,
+          hasRecommendations: !!response.response?.recommendations,
+          recommendationsCount: response.response?.recommendations?.length || 0,
+          recommendations: response.response?.recommendations,
+        });
+
         if (response.success && response.response) {
           const aiMsg: Message = {
             id: (Date.now() + 1).toString(),
