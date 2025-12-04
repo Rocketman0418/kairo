@@ -410,34 +410,54 @@ async function fetchMatchingSessions(
   }
 
   if (!sessions || sessions.length === 0) {
-    console.log('No sessions found');
+    console.log('No sessions found in database');
     return [];
   }
 
+  console.log(`Found ${sessions.length} total sessions, now filtering...`);
+
   const filtered = sessions.filter((session: any) => {
+    const reasons: string[] = [];
+
     if (session.enrolled_count >= session.capacity) {
+      reasons.push('FULL');
+      console.log(`Session ${session.id} filtered: ${reasons.join(', ')}`);
       return false;
     }
 
     const program = session.program;
-    if (!program || !program.age_range) return false;
+    if (!program || !program.age_range) {
+      reasons.push('NO_PROGRAM_DATA');
+      console.log(`Session ${session.id} filtered: ${reasons.join(', ')}`);
+      return false;
+    }
 
     if (program.organization_id !== organizationId) {
+      reasons.push(`WRONG_ORG (${program.organization_id} !== ${organizationId})`);
+      console.log(`Session ${session.id} filtered: ${reasons.join(', ')}`);
       return false;
     }
 
     const ageRangeMatch = program.age_range.match(/\[(\d+),(\d+)\)/);
-    if (!ageRangeMatch) return false;
+    if (!ageRangeMatch) {
+      reasons.push('AGE_RANGE_PARSE_ERROR');
+      console.log(`Session ${session.id} filtered: ${reasons.join(', ')}`);
+      return false;
+    }
 
     const minAge = parseInt(ageRangeMatch[1]);
     const maxAge = parseInt(ageRangeMatch[2]);
 
     if (childAge < minAge || childAge >= maxAge) {
+      reasons.push(`AGE_MISMATCH (need ${minAge}-${maxAge}, got ${childAge})`);
+      console.log(`Session ${session.id} filtered: ${reasons.join(', ')}`);
       return false;
     }
 
     if (preferredDays && preferredDays.length > 0) {
       if (!preferredDays.includes(session.day_of_week)) {
+        reasons.push(`DAY_MISMATCH (need ${preferredDays}, got ${session.day_of_week})`);
+        console.log(`Session ${session.id} filtered: ${reasons.join(', ')}`);
         return false;
       }
     }
@@ -446,13 +466,28 @@ async function fetchMatchingSessions(
       const startTime = session.start_time;
       const hour = parseInt(startTime.split(':')[0]);
 
-      if (preferredTimeOfDay === 'morning' && hour >= 12) return false;
-      if (preferredTimeOfDay === 'afternoon' && (hour < 12 || hour >= 19)) return false;
-      if (preferredTimeOfDay === 'evening' && hour < 17) return false;
+      if (preferredTimeOfDay === 'morning' && hour >= 12) {
+        reasons.push(`TIME_MISMATCH (morning but hour is ${hour})`);
+        console.log(`Session ${session.id} filtered: ${reasons.join(', ')}`);
+        return false;
+      }
+      if (preferredTimeOfDay === 'afternoon' && (hour < 12 || hour >= 19)) {
+        reasons.push(`TIME_MISMATCH (afternoon but hour is ${hour})`);
+        console.log(`Session ${session.id} filtered: ${reasons.join(', ')}`);
+        return false;
+      }
+      if (preferredTimeOfDay === 'evening' && hour < 17) {
+        reasons.push(`TIME_MISMATCH (evening but hour is ${hour})`);
+        console.log(`Session ${session.id} filtered: ${reasons.join(', ')}`);
+        return false;
+      }
     }
 
+    console.log(`✅ Session ${session.id} (${program.name}) PASSED all filters`);
     return true;
   });
+
+  console.log(`After filtering: ${filtered.length} sessions matched`);
 
   const mapped = filtered.slice(0, 3).map((session: any) => ({
     sessionId: session.id,
