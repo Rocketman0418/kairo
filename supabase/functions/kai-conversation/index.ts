@@ -447,7 +447,7 @@ async function fetchMatchingSessions(
       const hour = parseInt(startTime.split(':')[0]);
 
       if (preferredTimeOfDay === 'morning' && hour >= 12) return false;
-      if (preferredTimeOfDay === 'afternoon' && (hour < 12 || hour >= 17)) return false;
+      if (preferredTimeOfDay === 'afternoon' && (hour < 12 || hour >= 19)) return false;
       if (preferredTimeOfDay === 'evening' && hour < 17) return false;
     }
 
