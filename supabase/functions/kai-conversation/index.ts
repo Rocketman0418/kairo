@@ -33,6 +33,7 @@ interface GeminiStructuredResponse {
     preferredDays?: number[] | null;
     preferredTime?: string | null;
     preferredTimeOfDay?: 'morning' | 'afternoon' | 'evening' | 'any' | null;
+    preferredProgram?: string | null;
   };
   nextState: 'greeting' | 'collecting_child_info' | 'collecting_preferences' | 'showing_recommendations' | 'confirming_selection' | 'collecting_payment';
   reasoningNotes?: string;
@@ -105,6 +106,11 @@ Deno.serve(async (req: Request) => {
                       type: "string",
                       nullable: true,
                       description: "General time of day preference: 'morning', 'afternoon', 'evening', or 'any'. Use 'any' if parent says 'show me all options', 'flexible', 'any time', etc."
+                    },
+                    preferredProgram: {
+                      type: "string",
+                      nullable: true,
+                      description: "Specific program/activity type if mentioned: 'swimming', 'soccer', 'basketball', etc. Extract ONLY if user explicitly mentions a specific sport or activity."
                     }
                   }
                 },
@@ -171,6 +177,9 @@ Deno.serve(async (req: Request) => {
     if (structuredResponse.extractedData.preferredTimeOfDay) {
       updatedContext.preferredTimeOfDay = structuredResponse.extractedData.preferredTimeOfDay;
     }
+    if (structuredResponse.extractedData.preferredProgram) {
+      updatedContext.preferredProgram = structuredResponse.extractedData.preferredProgram;
+    }
 
     if (structuredResponse.extractedData.childAge &&
         (structuredResponse.extractedData.childAge < 2 || structuredResponse.extractedData.childAge > 18)) {
@@ -217,6 +226,65 @@ Deno.serve(async (req: Request) => {
       );
 
       console.log('Recommendations result:', recommendations);
+
+      // Check if user specified a preferred program and filter accordingly
+      if (updatedContext.preferredProgram && recommendations && recommendations.length > 0) {
+        const preferredProgramLower = updatedContext.preferredProgram.toLowerCase();
+        const filteredByProgram = recommendations.filter((rec: any) =>
+          rec.programName.toLowerCase().includes(preferredProgramLower)
+        );
+
+        console.log(`User asked for "${updatedContext.preferredProgram}". Found ${filteredByProgram.length}/${recommendations.length} matches`);
+
+        // If no matches for the specific program, trigger "no match" response
+        if (filteredByProgram.length === 0) {
+          console.log(`No "${updatedContext.preferredProgram}" sessions found - generating helpful alternative response`);
+
+          const programMismatchPrompt = buildProgramMismatchPrompt(
+            updatedContext,
+            recommendations
+          );
+
+          const alternativeResponse = await fetch(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_API_KEY,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [{ text: programMismatchPrompt }]
+                }],
+                generationConfig: {
+                  responseMimeType: "application/json",
+                  responseSchema: {
+                    type: "object",
+                    properties: {
+                      message: {
+                        type: "string",
+                        description: "Your empathetic response acknowledging no match for the specific program"
+                      }
+                    },
+                    required: ["message"]
+                  }
+                }
+              }),
+            }
+          );
+
+          if (alternativeResponse.ok) {
+            const altData = await alternativeResponse.json();
+            if (altData.candidates?.[0]?.content?.parts?.[0]?.text) {
+              const altParsed = JSON.parse(altData.candidates[0].content.parts[0].text);
+              finalMessage = altParsed.message;
+              finalNextState = 'collecting_preferences';
+              recommendations = null; // Clear recommendations since none match
+            }
+          }
+        } else {
+          // Use filtered recommendations
+          recommendations = filteredByProgram;
+        }
+      }
 
       if (!recommendations || recommendations.length === 0) {
         console.log('No recommendations found - asking Gemini for alternative suggestions');
@@ -348,7 +416,7 @@ function loadContextFiles(currentState: string): string {
 }
 
 function buildSystemPrompt(userMessage: string, context: any, contextContent: string): string {
-  return `You are Kai, a conversational AI helping parents register their children for youth sports programs.\n\n## CURRENT CONVERSATION STATE: ${context.currentState}\n\n## WHAT YOU KNOW SO FAR:\n- Child Name: ${context.childName || 'unknown'}\n- Child Age: ${context.childAge || 'unknown'}\n- Preferred Days: ${context.preferredDays ? JSON.stringify(context.preferredDays) : 'unknown'}\n- Preferred Time: ${context.preferredTime || 'unknown'}\n- Preferred Time of Day: ${context.preferredTimeOfDay || 'unknown'}\n\n## CONTEXT & GUIDELINES:\n${contextContent}\n\n## USER'S LATEST MESSAGE:\n\"${userMessage}\"\n\n## YOUR TASK:\n1. Extract any new data from the user's message (name, age, day preferences, time preferences)\n2. Provide a warm, conversational response (2-3 sentences max)\n3. Determine the next conversation state\n4. If moving to 'showing_recommendations', ensure you have: childAge AND (preferredDays OR preferredTimeOfDay)\n\nIMPORTANT EXTRACTION RULES:\n- \"Weekend mornings\" = preferredDays: [0, 6], preferredTimeOfDay: \"morning\"\n- \"Weekday afternoons\" = preferredDays: [1, 2, 3, 4, 5], preferredTimeOfDay: \"afternoon\"\n- \"Show me all options\" = preferredDays: [0,1,2,3,4,5,6], preferredTimeOfDay: \"any\"\n\nRespond with valid JSON matching the required schema.`;
+  return `You are Kai, a conversational AI helping parents register their children for youth sports programs.\n\n## CURRENT CONVERSATION STATE: ${context.currentState}\n\n## WHAT YOU KNOW SO FAR:\n- Child Name: ${context.childName || 'unknown'}\n- Child Age: ${context.childAge || 'unknown'}\n- Preferred Days: ${context.preferredDays ? JSON.stringify(context.preferredDays) : 'unknown'}\n- Preferred Time: ${context.preferredTime || 'unknown'}\n- Preferred Time of Day: ${context.preferredTimeOfDay || 'unknown'}\n- Preferred Program: ${context.preferredProgram || 'unknown'}\n\n## CONTEXT & GUIDELINES:\n${contextContent}\n\n## USER'S LATEST MESSAGE:\n\"${userMessage}\"\n\n## YOUR TASK:\n1. Extract any new data from the user's message (name, age, day preferences, time preferences, program type)\n2. Provide a warm, conversational response (2-3 sentences max)\n3. Determine the next conversation state\n4. If moving to 'showing_recommendations', ensure you have: childAge AND (preferredDays OR preferredTimeOfDay)\n\nIMPORTANT EXTRACTION RULES:\n- \"Weekend mornings\" = preferredDays: [0, 6], preferredTimeOfDay: \"morning\"\n- \"Weekday afternoons\" = preferredDays: [1, 2, 3, 4, 5], preferredTimeOfDay: \"afternoon\"\n- \"Show me all options\" = preferredDays: [0,1,2,3,4,5,6], preferredTimeOfDay: \"any\"\n- \"Do you have swimming?\" = preferredProgram: \"swimming\"\n- \"Any basketball?\" = preferredProgram: \"basketball\"\n\nRespond with valid JSON matching the required schema.`;
 }
 
 function buildNoResultsPrompt(context: any): string {
@@ -359,6 +427,44 @@ function buildNoResultsPrompt(context: any): string {
   const timeText = context.preferredTimeOfDay || 'any time';
 
   return `You are Kai, a friendly AI helping parents register their children for youth sports programs.\n\n## SITUATION:\nA parent is trying to register ${context.childName || 'their child'} (age ${context.childAge}) and requested:\n- Days: ${daysText}\n- Time: ${timeText}\n\nUnfortunately, NO sessions matched these criteria.\n\n## YOUR TASK:\n1. Express empathy and acknowledge that no matches were found\n2. Offer to help find alternatives\n3. Suggest 2-3 specific alternatives they could try instead\n\n## ALTERNATIVE SUGGESTIONS TO CONSIDER:\n- \"Try weekday afternoons instead\"\n- \"Try weekend mornings instead\"\n- \"Show me all available times\"\n- \"Try evenings instead\"\n- \"Would a different day of the week work?\"\n\nKeep your response warm, brief (2-3 sentences), and helpful. Don't apologize excessively.\n\nExamples:\n- \"I couldn't find any sessions for ${daysText} ${timeText}, but I'd love to help you find something that works! Would you like to try weekday afternoons, or should I show you all available options?\"\n- \"Hmm, no matches for ${daysText} ${timeText}. How about we look at weekday evenings, or I can show you everything available for age ${context.childAge}?\"\n\nRespond with valid JSON matching the required schema.`;
+}
+
+function buildProgramMismatchPrompt(context: any, availablePrograms: any[]): string {
+  const daysText = context.preferredDays
+    ? context.preferredDays.map((d: number) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d]).join(', ')
+    : 'any day';
+
+  const timeText = context.preferredTimeOfDay || 'any time';
+  const requestedProgram = context.preferredProgram || 'program';
+
+  const availableProgramNames = [...new Set(availablePrograms.map((p: any) => p.programName))].join(', ');
+
+  return `You are Kai, a friendly AI helping parents register their children for youth sports programs.
+
+## SITUATION:
+A parent asked: "Do you have any ${requestedProgram} on ${daysText} ${timeText}?"
+
+For ${context.childName || 'their child'} (age ${context.childAge}):
+- They specifically requested: ${requestedProgram}
+- On: ${daysText}
+- Time: ${timeText}
+
+Unfortunately, we DON'T have any ${requestedProgram} sessions matching those criteria.
+
+However, we DO have these other programs available for that time: ${availableProgramNames}
+
+## YOUR TASK:
+Provide a warm, empathetic response (2-3 sentences max) that:
+1. Acknowledges we don't have ${requestedProgram} for their requested time
+2. Offers to help find ${requestedProgram} at other times OR show similar alternatives
+3. Sounds natural and helpful, not robotic
+
+## RESPONSE TEMPLATE:
+"I'm sorry, we don't have ${requestedProgram} on ${daysText} ${timeText} right now. Would you like me to check when ${requestedProgram} is available, or would you be interested in other activities like ${availableProgramNames.split(',')[0]} for that time?"
+
+Keep it conversational, brief, and focused on helping them find the right solution.
+
+Respond with valid JSON matching the required schema.`;
 }
 
 function getQuickReplies(state: string): string[] {
