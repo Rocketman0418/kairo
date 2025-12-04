@@ -206,6 +206,7 @@ Deno.serve(async (req: Request) => {
     let recommendations = null;
     let finalMessage = structuredResponse.message;
     let finalNextState = structuredResponse.nextState;
+    let suggestedAlternatives: string[] = [];
 
     if (structuredResponse.nextState === 'showing_recommendations' &&
         updatedContext.childAge &&
@@ -262,9 +263,14 @@ Deno.serve(async (req: Request) => {
                       message: {
                         type: "string",
                         description: "Your empathetic response acknowledging no match for the specific program"
+                      },
+                      suggestedAlternatives: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "2-3 specific alternative options as quick reply buttons (e.g., 'Monday evenings', 'Different day of week', 'Show all available times')"
                       }
                     },
-                    required: ["message"]
+                    required: ["message", "suggestedAlternatives"]
                   }
                 }
               }),
@@ -274,10 +280,11 @@ Deno.serve(async (req: Request) => {
           if (alternativeResponse.ok) {
             const altData = await alternativeResponse.json();
             if (altData.candidates?.[0]?.content?.parts?.[0]?.text) {
-              const altParsed = JSON.parse(altData.candidates[0].content.parts[0].text);
-              finalMessage = altParsed.message;
+              const altParsed = JSON.parse(altData.candidates[0].content.parts[0].text);              finalMessage = altParsed.message;
               finalNextState = 'collecting_preferences';
               recommendations = null; // Clear recommendations since none match
+              suggestedAlternatives = altParsed.suggestedAlternatives || [];
+              console.log('Program mismatch suggestions:', suggestedAlternatives);
             }
           }
         } else {
@@ -327,7 +334,8 @@ Deno.serve(async (req: Request) => {
             const altParsed = JSON.parse(altData.candidates[0].content.parts[0].text);
             finalMessage = altParsed.message;
             finalNextState = 'collecting_preferences';
-            console.log('Alternative suggestions:', altParsed.suggestedAlternatives);
+            suggestedAlternatives = altParsed.suggestedAlternatives || [];
+            console.log('No results suggestions:', suggestedAlternatives);
           }
         }
       }
@@ -358,7 +366,7 @@ Deno.serve(async (req: Request) => {
         message: finalMessage,
         nextState: finalNextState,
         extractedData: structuredResponse.extractedData,
-        quickReplies: getQuickReplies(finalNextState),
+        quickReplies: suggestedAlternatives.length > 0 ? suggestedAlternatives : getQuickReplies(finalNextState),
         progress: calculateProgress(finalNextState),
         recommendations: recommendations,
       },
@@ -459,10 +467,19 @@ Provide a warm, empathetic response (2-3 sentences max) that:
 2. Offers to help find ${requestedProgram} at other times OR show similar alternatives
 3. Sounds natural and helpful, not robotic
 
+Also provide 2-3 clickable alternative suggestions that EXACTLY match what you mentioned in your message.
+
 ## RESPONSE TEMPLATE:
 "I'm sorry, we don't have ${requestedProgram} on ${daysText} ${timeText} right now. Would you like me to check when ${requestedProgram} is available, or would you be interested in other activities like ${availableProgramNames.split(',')[0]} for that time?"
 
-Keep it conversational, brief, and focused on helping them find the right solution.
+## SUGGESTED ALTERNATIVES EXAMPLES:
+If you mention "Monday evenings, a different day of the week, or all available times" in your message,
+the suggestedAlternatives array should be: ["Monday evenings", "Different day of week", "Show all available times"]
+
+If you mention "weekday afternoons or show you all our ${requestedProgram} sessions",
+the suggestedAlternatives array should be: ["Weekday afternoons", "All ${requestedProgram} sessions"]
+
+IMPORTANT: The quick reply buttons MUST match exactly what you suggest in your message text.
 
 Respond with valid JSON matching the required schema.`;
 }
@@ -627,8 +644,10 @@ async function fetchMatchingSessions(
     ageRange: session.program?.age_range || '[0,18)',
     price: session.program?.price_cents || 0,
     durationWeeks: session.program?.duration_weeks || 0,
+    locationId: session.location?.id || null,
     locationName: session.location?.name || 'TBD',
     locationAddress: session.location?.address || '',
+    coachId: session.coach?.id || null,
     coachName: session.coach?.name || 'TBD',
     coachRating: session.coach?.rating || null,
     dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][session.day_of_week],

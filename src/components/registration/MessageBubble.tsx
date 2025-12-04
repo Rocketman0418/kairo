@@ -4,10 +4,11 @@ import { SessionCard } from './SessionCard';
 interface MessageBubbleProps {
   message: Message;
   onQuickReply?: (reply: string) => void;
-  onSelectSession?: (sessionId: string) => void;
+  onSelectSession?: (sessionId: string, programName: string) => void;
+  organizationId: string;
 }
 
-export function MessageBubble({ message, onQuickReply, onSelectSession }: MessageBubbleProps) {
+export function MessageBubble({ message, onQuickReply, onSelectSession, organizationId }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
@@ -68,7 +69,8 @@ export function MessageBubble({ message, onQuickReply, onSelectSession }: Messag
             <SessionCard
               key={session.sessionId}
               session={session}
-              onSelect={(sessionId) => onSelectSession?.(sessionId)}
+              onSelect={(sessionId) => onSelectSession?.(sessionId, session.programName)}
+              organizationId={organizationId}
             />
           ))}
         </div>

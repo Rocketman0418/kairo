@@ -121,10 +121,11 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
             onQuickReply={(reply) => {
               handleSendMessage(reply);
             }}
-            onSelectSession={(sessionId) => {
-              const sessionMessage = `I'd like to register for session ${sessionId}`;
+            onSelectSession={(sessionId, programName) => {
+              const sessionMessage = `I'd like to register for ${programName}`;
               handleSendMessage(sessionMessage);
             }}
+            organizationId={organizationId}
           />
         ))}
         {isLoading && (
