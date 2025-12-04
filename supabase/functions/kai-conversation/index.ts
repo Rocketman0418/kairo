@@ -195,6 +195,9 @@ Deno.serve(async (req: Request) => {
     }
 
     let recommendations = null;
+    let finalMessage = structuredResponse.message;
+    let finalNextState = structuredResponse.nextState;
+
     if (structuredResponse.nextState === 'showing_recommendations' &&
         updatedContext.childAge &&
         (updatedContext.preferredDays || updatedContext.preferredTimeOfDay)) {
@@ -214,6 +217,53 @@ Deno.serve(async (req: Request) => {
       );
 
       console.log('Recommendations result:', recommendations);
+
+      // If no results found, ask Gemini to offer alternatives
+      if (!recommendations || recommendations.length === 0) {
+        console.log('No recommendations found - asking Gemini for alternative suggestions');
+
+        const noResultsPrompt = buildNoResultsPrompt(updatedContext);
+        const alternativeResponse = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_API_KEY,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{ text: noResultsPrompt }]
+              }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: "object",
+                  properties: {
+                    message: {
+                      type: "string",
+                      description: "Your empathetic response offering to help find alternatives"
+                    },
+                    suggestedAlternatives: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "2-3 specific alternative suggestions (e.g., 'Try weekday afternoons', 'Show me all available times')"
+                    }
+                  },
+                  required: ["message", "suggestedAlternatives"]
+                }
+              }
+            }),
+          }
+        );
+
+        if (alternativeResponse.ok) {
+          const altData = await alternativeResponse.json();
+          if (altData.candidates?.[0]?.content?.parts?.[0]?.text) {
+            const altParsed = JSON.parse(altData.candidates[0].content.parts[0].text);
+            finalMessage = altParsed.message;
+            finalNextState = 'collecting_preferences';
+            console.log('Alternative suggestions:', altParsed.suggestedAlternatives);
+          }
+        }
+      }
     } else {
       console.log('Skipping recommendations fetch:', {
         nextState: structuredResponse.nextState,
@@ -229,7 +279,7 @@ Deno.serve(async (req: Request) => {
     await supabase
       .from('conversations')
       .update({
-        state: structuredResponse.nextState,
+        state: finalNextState,
         context: updatedContext,
         updated_at: new Date().toISOString(),
       })
@@ -238,11 +288,11 @@ Deno.serve(async (req: Request) => {
     const response = {
       success: true,
       response: {
-        message: structuredResponse.message,
-        nextState: structuredResponse.nextState,
+        message: finalMessage,
+        nextState: finalNextState,
         extractedData: structuredResponse.extractedData,
-        quickReplies: getQuickReplies(structuredResponse.nextState),
-        progress: calculateProgress(structuredResponse.nextState),
+        quickReplies: getQuickReplies(finalNextState),
+        progress: calculateProgress(finalNextState),
         recommendations: recommendations,
       },
     };
@@ -300,6 +350,16 @@ function loadContextFiles(currentState: string): string {
 
 function buildSystemPrompt(userMessage: string, context: any, contextContent: string): string {
   return `You are Kai, a conversational AI helping parents register their children for youth sports programs.\n\n## CURRENT CONVERSATION STATE: ${context.currentState}\n\n## WHAT YOU KNOW SO FAR:\n- Child Name: ${context.childName || 'unknown'}\n- Child Age: ${context.childAge || 'unknown'}\n- Preferred Days: ${context.preferredDays ? JSON.stringify(context.preferredDays) : 'unknown'}\n- Preferred Time: ${context.preferredTime || 'unknown'}\n- Preferred Time of Day: ${context.preferredTimeOfDay || 'unknown'}\n\n## CONTEXT & GUIDELINES:\n${contextContent}\n\n## USER'S LATEST MESSAGE:\n\"${userMessage}\"\n\n## YOUR TASK:\n1. Extract any new data from the user's message (name, age, day preferences, time preferences)\n2. Provide a warm, conversational response (2-3 sentences max)\n3. Determine the next conversation state\n4. If moving to 'showing_recommendations', ensure you have: childAge AND (preferredDays OR preferredTimeOfDay)\n\nIMPORTANT EXTRACTION RULES:\n- \"Weekend mornings\" = preferredDays: [0, 6], preferredTimeOfDay: \"morning\"\n- \"Weekday afternoons\" = preferredDays: [1, 2, 3, 4, 5], preferredTimeOfDay: \"afternoon\"\n- \"Show me all options\" = preferredDays: [0,1,2,3,4,5,6], preferredTimeOfDay: \"any\"\n\nRespond with valid JSON matching the required schema.`;
+}
+
+function buildNoResultsPrompt(context: any): string {
+  const daysText = context.preferredDays
+    ? context.preferredDays.map((d: number) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d]).join(', ')
+    : 'any day';
+
+  const timeText = context.preferredTimeOfDay || 'any time';
+
+  return `You are Kai, a friendly AI helping parents register their children for youth sports programs.\n\n## SITUATION:\nA parent is trying to register ${context.childName || 'their child'} (age ${context.childAge}) and requested:\n- Days: ${daysText}\n- Time: ${timeText}\n\nUnfortunately, NO sessions matched these criteria.\n\n## YOUR TASK:\n1. Express empathy and acknowledge that no matches were found\n2. Offer to help find alternatives\n3. Suggest 2-3 specific alternatives they could try instead\n\n## ALTERNATIVE SUGGESTIONS TO CONSIDER:\n- \"Try weekday afternoons instead\"\n- \"Try weekend mornings instead\"\n- \"Show me all available times\"\n- \"Try evenings instead\"\n- \"Would a different day of the week work?\"\n\nKeep your response warm, brief (2-3 sentences), and helpful. Don't apologize excessively.\n\nExamples:\n- \"I couldn't find any sessions for ${daysText} ${timeText}, but I'd love to help you find something that works! Would you like to try weekday afternoons, or should I show you all available options?\"\n- \"Hmm, no matches for ${daysText} ${timeText}. How about we look at weekday evenings, or I can show you everything available for age ${context.childAge}?\"\n\nRespond with valid JSON matching the required schema.`;
 }
 
 function getQuickReplies(state: string): string[] {
