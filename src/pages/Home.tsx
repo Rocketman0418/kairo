@@ -6,15 +6,17 @@ export function Home() {
     <div className="min-h-screen bg-gradient-to-br from-[#0f1419] via-[#1a2332] to-[#0f1419]">
       {/* Sticky Header */}
       <header className="sticky top-0 z-50 bg-gradient-to-r from-[#0f1419] via-[#1a2332] to-[#0f1419] border-b border-gray-800 backdrop-blur-sm bg-opacity-95">
-        <div className="container mx-auto px-4 py-4">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold mb-1">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold">
               <span className="bg-gradient-to-r from-[#6366f1] via-[#8b5cf6] to-[#06b6d4] bg-clip-text text-transparent">
                 Kairo Pro
               </span>
             </h1>
-            <p className="text-base text-white">Registration Reimagined</p>
-            <p className="text-sm text-gray-400">Built for Busy Parents</p>
+            <div className="text-right">
+              <p className="text-sm text-white">Registration Reimagined</p>
+              <p className="text-xs text-gray-400">Built for Busy Parents</p>
+            </div>
           </div>
         </div>
       </header>
