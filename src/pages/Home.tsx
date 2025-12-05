@@ -6,16 +6,16 @@ export function Home() {
     <div className="min-h-screen bg-gradient-to-br from-[#0f1419] via-[#1a2332] to-[#0f1419]">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold mb-3">
+          <h1 className="text-5xl font-bold mb-2">
             <span className="bg-gradient-to-r from-[#6366f1] via-[#8b5cf6] to-[#06b6d4] bg-clip-text text-transparent">
-              Registration
+              Kairo Pro
             </span>
-            <br />
-            <span className="text-white">Reimagined</span>
           </h1>
-          <p className="text-lg text-gray-400 max-w-3xl mx-auto leading-relaxed">
-            Transforming youth sports registration from an 18-minute ordeal into a 3-minute conversation.
-            AI-powered. Voice-enabled. Built for busy parents.
+          <p className="text-2xl text-white mb-2">Registration Reimagined</p>
+          <p className="text-lg text-gray-400 mb-4">Built for Busy Parents</p>
+          <p className="text-base text-gray-400 max-w-3xl mx-auto leading-relaxed">
+            Transforming youth sports registration from an 18-minute ordeal into a 5-minute conversation.
+            AI-powered. Voice-enabled.
           </p>
         </div>
 
