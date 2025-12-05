@@ -46,13 +46,14 @@ Deno.serve(async (req: Request) => {
 
     // Check if we have enough info to fetch sessions
     let recommendations = null;
-    let fullSessionInfo = null;
+    let requestedSessionInfo = null;
+    let sessionIssue = null;
 
     if (updatedContext.childAge && updatedContext.preferredDays && updatedContext.preferredDays.length > 0) {
       console.log('Have enough info to fetch sessions');
 
-      // First check if the user is asking for a specific session that might be full
-      const fullCheck = await checkForFullRequestedSession(
+      // First, try to find the EXACT session requested (even if full or wrong age)
+      const requestedCheck = await findRequestedSession(
         supabaseClient,
         context.organizationId,
         updatedContext.childAge,
@@ -61,41 +62,44 @@ Deno.serve(async (req: Request) => {
         updatedContext.preferredProgram
       );
 
-      if (fullCheck.isFullMatch) {
-        console.log('Found matching full session, fetching alternatives');
-        fullSessionInfo = fullCheck.session;
+      if (requestedCheck.found) {
+        console.log('Found requested session:', requestedCheck.issue || 'available');
+        requestedSessionInfo = requestedCheck.session;
+        sessionIssue = requestedCheck.issue; // 'full', 'wrong_age', or null if available
 
-        // Fetch alternatives for the full session
-        const alternatives = await fetchAlternativeSessions(
-          supabaseClient,
-          context.organizationId,
-          updatedContext.childAge,
-          updatedContext.preferredProgram,
-          updatedContext.preferredDays
-        );
+        // If session has issues, fetch alternatives
+        if (sessionIssue) {
+          const alternatives = await fetchAlternativeSessions(
+            supabaseClient,
+            context.organizationId,
+            updatedContext.childAge,
+            updatedContext.preferredProgram,
+            updatedContext.preferredDays
+          );
 
-        // Build special prompt for full session scenario
-        const fullSessionPrompt = buildFullSessionPrompt(updatedContext, fullSessionInfo, alternatives);
-        const fullResponse = await callGeminiWithPrompt(fullSessionPrompt, message);
+          const issuePrompt = buildUnavailableSessionPrompt(updatedContext, requestedSessionInfo, sessionIssue, alternatives);
+          const issueResponse = await callGeminiWithPrompt(issuePrompt, message);
 
-        return new Response(
-          JSON.stringify({
-            success: true,
-            response: {
-              message: fullResponse.message,
-              nextState: 'showing_full_session',
-              extractedData: updatedContext,
-              quickReplies: fullResponse.quickReplies || [],
-              progress: calculateProgress(updatedContext),
-              fullSession: fullSessionInfo,
-              alternatives: alternatives,
-            },
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+          return new Response(
+            JSON.stringify({
+              success: true,
+              response: {
+                message: issueResponse.message,
+                nextState: 'showing_unavailable_session',
+                extractedData: updatedContext,
+                quickReplies: issueResponse.quickReplies || [],
+                progress: calculateProgress(updatedContext),
+                requestedSession: requestedSessionInfo,
+                sessionIssue: sessionIssue,
+                alternatives: alternatives,
+              },
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
 
-      // Fetch regular available sessions
+      // Fetch available sessions (including requested if available, or closest matches)
       recommendations = await fetchMatchingSessions(
         supabaseClient,
         context.organizationId,
@@ -106,6 +110,19 @@ Deno.serve(async (req: Request) => {
       );
 
       console.log(`Found ${recommendations.length} recommendations`);
+
+      // If no exact matches, fetch broader matches
+      if (recommendations.length === 0) {
+        console.log('No exact matches, fetching broader results');
+        recommendations = await fetchBroaderMatches(
+          supabaseClient,
+          context.organizationId,
+          updatedContext.childAge,
+          updatedContext.preferredDays,
+          updatedContext.preferredProgram
+        );
+        console.log(`Found ${recommendations.length} broader matches`);
+      }
     }
 
     return new Response(
@@ -186,16 +203,18 @@ async function buildSystemContext(context: any): string {
   systemPrompt += `
 
 ## Data Extraction Rules
-ALWAYS extract structured data from the parent's message in your response JSON:
+ALWAYS extract structured data from the parent's message in your response JSON.
+
+CRITICAL: Only include fields that are NEW or CHANGED. Do NOT include fields you already have.
 
 {
   "message": "Your conversational response here",
   "extractedData": {
-    "childName": "extracted name or null",
-    "childAge": extracted_number or null,
-    "preferredDays": [array of day numbers 0-6] or null,
-    "preferredTimeOfDay": "morning|afternoon|evening|any" or null,
-    "preferredProgram": "sport name" or null
+    "childName": "extracted name or OMIT if you already have it",
+    "childAge": extracted_number or OMIT if you already have it,
+    "preferredDays": [array of day numbers 0-6] or OMIT if you already have it,
+    "preferredTimeOfDay": "morning|afternoon|evening|any" or OMIT if you already have it,
+    "preferredProgram": "sport name" or OMIT if you already have it
   },
   "nextState": "greeting|collecting_child_info|collecting_preferences|showing_recommendations",
   "quickReplies": ["suggestion 1", "suggestion 2"]
@@ -222,6 +241,8 @@ Look for sport/activity names: soccer, basketball, swim, tennis, art, dance, etc
 3. Once you have both, ask about schedule preferences
 4. Keep it conversational - don't sound like a form
 5. If parent provides multiple pieces of info, acknowledge ALL before asking next question
+6. NEVER ask "Can you confirm that's correct?" when parent explicitly states their preference - just acknowledge and proceed
+7. When parent gives you complete info (like "I want X on Y at Z time"), acknowledge it and move to search, don't ask for confirmation
 
 ## Example Exchanges
 
@@ -247,7 +268,16 @@ You: {
   "extractedData": { "preferredTimeOfDay": "morning" },
   "nextState": "showing_recommendations",
   "quickReplies": []
-}`;
+}
+
+Parent: "I want mini soccer on Wednesdays at 10am"
+You: {
+  "message": "Perfect! Let me check Wednesday morning mini soccer options for [child name].",
+  "extractedData": { "preferredProgram": "soccer", "preferredDays": [3], "preferredTimeOfDay": "morning" },
+  "nextState": "showing_recommendations",
+  "quickReplies": []
+}
+(Note: DO NOT ask "Can you confirm?" - the parent already confirmed by stating their preference!)`;
 
   return systemPrompt;
 }
@@ -554,122 +584,6 @@ async function fetchSessionRatings(supabase: any, sessionId: string): Promise<{ 
   };
 }
 
-async function checkForFullRequestedSession(
-  supabase: any,
-  organizationId: string,
-  childAge: number,
-  preferredDays?: number[],
-  preferredTimeOfDay?: string,
-  preferredProgram?: string
-): Promise<{ isFullMatch: boolean; session: any | null }> {
-
-  if (!preferredDays || preferredDays.length === 0 || !preferredProgram) {
-    return { isFullMatch: false, session: null };
-  }
-
-  console.log('Checking for full sessions matching:', { preferredProgram, preferredDays, preferredTimeOfDay });
-
-  const { data: sessions, error } = await supabase
-    .from('sessions')
-    .select(`
-      id,
-      day_of_week,
-      start_time,
-      start_date,
-      end_date,
-      capacity,
-      enrolled_count,
-      status,
-      program:programs!inner (
-        id,
-        name,
-        description,
-        age_range,
-        price_cents,
-        duration_weeks,
-        organization_id
-      ),
-      location:locations (
-        id,
-        name,
-        address
-      ),
-      coach:staff (
-        id,
-        name,
-        rating
-      )
-    `)
-    .eq('status', 'full')
-    .gte('start_date', new Date().toISOString().split('T')[0]);
-
-  if (error || !sessions) {
-    return { isFullMatch: false, session: null };
-  }
-
-  for (const session of sessions) {
-    const program = session.program;
-    if (!program) continue;
-
-    if (program.organization_id !== organizationId) continue;
-
-    const programNameMatch = program.name.toLowerCase().includes(preferredProgram.toLowerCase());
-    if (!programNameMatch) continue;
-
-    const ageRangeMatch = program.age_range?.match(/\[(\d+),(\d+)\)/);
-    if (!ageRangeMatch) continue;
-
-    const minAge = parseInt(ageRangeMatch[1]);
-    const maxAge = parseInt(ageRangeMatch[2]);
-
-    if (childAge < minAge || childAge >= maxAge) continue;
-
-    if (!preferredDays.includes(session.day_of_week)) continue;
-
-    if (preferredTimeOfDay && preferredTimeOfDay !== 'any') {
-      const startTime = session.start_time;
-      const hour = parseInt(startTime.split(':')[0]);
-
-      if (preferredTimeOfDay === 'morning' && hour >= 12) continue;
-      if (preferredTimeOfDay === 'afternoon' && (hour < 12 || hour >= 17)) continue;
-      if (preferredTimeOfDay === 'evening' && hour < 17) continue;
-    }
-
-    console.log('Found full session matching user request:', session.id, program.name);
-
-    const ratings = await fetchSessionRatings(supabase, session.id);
-
-    const mapped = {
-      sessionId: session.id,
-      programName: program.name,
-      programDescription: program.description || '',
-      ageRange: program.age_range,
-      price: program.price_cents || 0,
-      durationWeeks: program.duration_weeks || 0,
-      locationId: session.location?.id || null,
-      locationName: session.location?.name || 'TBD',
-      locationAddress: session.location?.address || '',
-      locationRating: ratings.locationRating,
-      coachId: session.coach?.id || null,
-      coachName: session.coach?.name || 'TBD',
-      coachRating: session.coach?.rating || null,
-      sessionRating: ratings.sessionRating,
-      dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][session.day_of_week],
-      startTime: session.start_time,
-      startDate: session.start_date,
-      endDate: session.end_date,
-      capacity: session.capacity,
-      enrolledCount: session.enrolled_count,
-      spotsRemaining: 0,
-      isFull: true,
-    };
-
-    return { isFullMatch: true, session: mapped };
-  }
-
-  return { isFullMatch: false, session: null };
-}
-
 async function fetchAlternativeSessions(
   supabase: any,
   organizationId: string,
@@ -806,4 +720,281 @@ Your job: Acknowledge the full class and offer to add them to the waitlist.`}
 }
 
 Keep it friendly and helpful. Don't apologize excessively.`;
+}
+
+async function findRequestedSession(
+  supabase: any,
+  organizationId: string,
+  childAge: number,
+  preferredDays?: number[],
+  preferredTimeOfDay?: string,
+  preferredProgram?: string
+): Promise<{ found: boolean; session: any | null; issue: string | null }> {
+
+  if (!preferredProgram || !preferredDays || preferredDays.length === 0) {
+    return { found: false, session: null, issue: null };
+  }
+
+  console.log('Looking for requested session:', { preferredProgram, preferredDays, preferredTimeOfDay, childAge });
+
+  const { data: sessions, error } = await supabase
+    .from('sessions')
+    .select(`
+      id,
+      day_of_week,
+      start_time,
+      start_date,
+      end_date,
+      capacity,
+      enrolled_count,
+      status,
+      program:programs!inner (
+        id,
+        name,
+        description,
+        age_range,
+        price_cents,
+        duration_weeks,
+        organization_id
+      ),
+      location:locations (
+        id,
+        name,
+        address
+      ),
+      coach:staff (
+        id,
+        name,
+        rating
+      )
+    `)
+    .gte('start_date', new Date().toISOString().split('T')[0]);
+
+  if (error || !sessions) {
+    console.log('Error fetching sessions:', error);
+    return { found: false, session: null, issue: null };
+  }
+
+  // Find exact match for program, day, and time
+  for (const session of sessions) {
+    const program = session.program;
+    if (!program) continue;
+
+    if (program.organization_id !== organizationId) continue;
+
+    // Check program name match
+    const programNameMatch = program.name.toLowerCase().includes(preferredProgram.toLowerCase());
+    if (!programNameMatch) continue;
+
+    // Check day match
+    if (!preferredDays.includes(session.day_of_week)) continue;
+
+    // Check time match if specified
+    if (preferredTimeOfDay && preferredTimeOfDay !== 'any') {
+      const startTime = session.start_time;
+      const hour = parseInt(startTime.split(':')[0]);
+
+      if (preferredTimeOfDay === 'morning' && hour >= 12) continue;
+      if (preferredTimeOfDay === 'afternoon' && (hour < 12 || hour >= 17)) continue;
+      if (preferredTimeOfDay === 'evening' && hour < 17) continue;
+    }
+
+    // Found matching session! Now check if it's available
+    console.log('Found exact match:', session.id, program.name);
+
+    const ratings = await fetchSessionRatings(supabase, session.id);
+
+    const sessionData = {
+      sessionId: session.id,
+      programName: program.name,
+      programDescription: program.description || '',
+      ageRange: program.age_range,
+      price: program.price_cents || 0,
+      durationWeeks: program.duration_weeks || 0,
+      locationId: session.location?.id || null,
+      locationName: session.location?.name || 'TBD',
+      locationAddress: session.location?.address || '',
+      locationRating: ratings.locationRating,
+      coachId: session.coach?.id || null,
+      coachName: session.coach?.name || 'TBD',
+      coachRating: session.coach?.rating || null,
+      sessionRating: ratings.sessionRating,
+      dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][session.day_of_week],
+      startTime: session.start_time,
+      startDate: session.start_date,
+      endDate: session.end_date,
+      capacity: session.capacity,
+      enrolledCount: session.enrolled_count,
+      spotsRemaining: session.capacity - session.enrolled_count,
+    };
+
+    // Check if full
+    if (session.status === 'full' || session.enrolled_count >= session.capacity) {
+      return { found: true, session: sessionData, issue: 'full' };
+    }
+
+    // Check age range
+    const ageRangeMatch = program.age_range?.match(/\[(\d+),(\d+)\)/);
+    if (ageRangeMatch) {
+      const minAge = parseInt(ageRangeMatch[1]);
+      const maxAge = parseInt(ageRangeMatch[2]);
+
+      if (childAge < minAge || childAge >= maxAge) {
+        return { found: true, session: sessionData, issue: 'wrong_age' };
+      }
+    }
+
+    // Session is available!
+    return { found: true, session: sessionData, issue: null };
+  }
+
+  return { found: false, session: null, issue: null };
+}
+
+function buildUnavailableSessionPrompt(context: any, requestedSession: any, issue: string, alternatives: any[]): string {
+  const hasAlternatives = alternatives.length > 0;
+  const childName = context.childName || 'your child';
+  const childAge = context.childAge;
+
+  let issueDescription = '';
+  if (issue === 'full') {
+    issueDescription = `THIS SPECIFIC CLASS IS FULL (${requestedSession.enrolledCount}/${requestedSession.capacity} enrolled).`;
+  } else if (issue === 'wrong_age') {
+    const ageRange = requestedSession.ageRange || '';
+    const match = ageRange.match(/\[(\d+),(\d+)\)/);
+    const ageText = match ? `ages ${match[1]}-${parseInt(match[2])-1}` : 'a different age group';
+    issueDescription = `This ${requestedSession.programName} class is for ${ageText}, but ${childName} is ${childAge} years old.`;
+  }
+
+  const alternativesText = hasAlternatives
+    ? alternatives.map((alt: any) => `${alt.programName} on ${alt.dayOfWeek}s at ${alt.startTime} (${alt.spotsRemaining} spots left)`).join(', ')
+    : 'none available right now';
+
+  return `You are Kai, a friendly AI helping parents register their children for youth sports programs.
+
+## SITUATION:
+Parent requested: ${requestedSession.programName} on ${requestedSession.dayOfWeek}s at ${requestedSession.startTime}
+For ${childName} (age ${childAge})
+
+The session exists, BUT: ${issueDescription}
+
+${hasAlternatives ? `## AVAILABLE ALTERNATIVES (same or similar program, suitable age):
+${alternativesText}
+
+Your job: Acknowledge the issue clearly and briefly, then present the alternatives as great options.` : `## NO SUITABLE ALTERNATIVES FOUND
+Your job: Acknowledge the issue and offer to show other programs or add to waitlist.`}
+
+## YOUR RESPONSE (JSON format):
+{
+  "message": "1-2 sentences acknowledging the issue and ${hasAlternatives ? 'presenting alternatives' : 'offering next steps'}",
+  "quickReplies": ${hasAlternatives ? '["View alternatives", "Join waitlist", "Show other programs"]' : '["Join waitlist", "Show all programs"]'}
+}
+
+Be direct and helpful. Don't over-apologize.`;
+}
+
+async function fetchBroaderMatches(
+  supabase: any,
+  organizationId: string,
+  childAge: number,
+  preferredDays?: number[],
+  preferredProgram?: string
+): Promise<any[]> {
+
+  console.log('Fetching broader matches for:', { organizationId, childAge, preferredDays, preferredProgram });
+
+  const { data: sessions, error } = await supabase
+    .from('sessions')
+    .select(`
+      id,
+      day_of_week,
+      start_time,
+      start_date,
+      end_date,
+      capacity,
+      enrolled_count,
+      status,
+      program:programs!inner (
+        id,
+        name,
+        description,
+        age_range,
+        price_cents,
+        duration_weeks,
+        organization_id
+      ),
+      location:locations (
+        id,
+        name,
+        address
+      ),
+      coach:staff (
+        id,
+        name,
+        rating
+      )
+    `)
+    .eq('status', 'active')
+    .gte('start_date', new Date().toISOString().split('T')[0]);
+
+  if (error || !sessions) {
+    console.log('Error fetching broader sessions:', error);
+    return [];
+  }
+
+  const filtered = sessions.filter((session: any) => {
+    const program = session.program;
+    if (!program || !program.age_range) return false;
+    if (program.organization_id !== organizationId) return false;
+    if (session.enrolled_count >= session.capacity) return false;
+
+    // Check age range
+    const ageRangeMatch = program.age_range.match(/\[(\d+),(\d+)\)/);
+    if (!ageRangeMatch) return false;
+
+    const minAge = parseInt(ageRangeMatch[1]);
+    const maxAge = parseInt(ageRangeMatch[2]);
+
+    if (childAge < minAge || childAge >= maxAge) return false;
+
+    // If preferred days specified, try to match at least one
+    if (preferredDays && preferredDays.length > 0 && preferredDays.length < 7) {
+      if (!preferredDays.includes(session.day_of_week)) return false;
+    }
+
+    return true;
+  });
+
+  console.log(`Found ${filtered.length} broader matches`);
+
+  const topSessions = filtered.slice(0, 5);
+  const mapped = await Promise.all(topSessions.map(async (session: any) => {
+    const ratings = await fetchSessionRatings(supabase, session.id);
+
+    return {
+      sessionId: session.id,
+      programName: session.program?.name || 'Unknown Program',
+      programDescription: session.program?.description || '',
+      ageRange: session.program?.age_range || '[0,18)',
+      price: session.program?.price_cents || 0,
+      durationWeeks: session.program?.duration_weeks || 0,
+      locationId: session.location?.id || null,
+      locationName: session.location?.name || 'TBD',
+      locationAddress: session.location?.address || '',
+      locationRating: ratings.locationRating,
+      coachId: session.coach?.id || null,
+      coachName: session.coach?.name || 'TBD',
+      coachRating: session.coach?.rating || null,
+      sessionRating: ratings.sessionRating,
+      dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][session.day_of_week],
+      startTime: session.start_time,
+      startDate: session.start_date,
+      endDate: session.end_date,
+      capacity: session.capacity,
+      enrolledCount: session.enrolled_count,
+      spotsRemaining: session.capacity - session.enrolled_count,
+    };
+  }));
+
+  return mapped;
 }
