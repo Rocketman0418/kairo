@@ -102,7 +102,8 @@ export function useConversation(options: UseConversationOptions) {
         console.log('Has Recommendations:', !!response.response?.recommendations);
         console.log('Recommendations Count:', response.response?.recommendations?.length || 0);
         if (response.response?.recommendations && response.response.recommendations.length > 0) {
-          console.log('First Recommendation:', response.response.recommendations[0]);
+          console.log('First Recommendation (full):', JSON.stringify(response.response.recommendations[0], null, 2));
+          console.log('SessionRating in first recommendation:', response.response.recommendations[0].sessionRating);
         } else {
           console.log('NO RECOMMENDATIONS RETURNED - Check edge function logs in Supabase dashboard');
         }

@@ -41,6 +41,14 @@ export function SessionCard({ session, onSelect, organizationId, onSignUp, isFul
   const [showCoachModal, setShowCoachModal] = useState(false);
   const [showProgramModal, setShowProgramModal] = useState(false);
 
+  // Debug logging for session rating
+  console.log('SessionCard received:', {
+    programName: session.programName,
+    sessionRating: session.sessionRating,
+    hasSessionRating: !!session.sessionRating,
+    sessionRatingType: typeof session.sessionRating,
+  });
+
   const formatPrice = (cents: number) => {
     return `$${(cents / 100).toFixed(0)}`;
   };
