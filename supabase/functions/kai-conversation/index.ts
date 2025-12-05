@@ -44,6 +44,36 @@ Deno.serve(async (req: Request) => {
     const extractedData = geminiResponse.extractedData || {};
     const updatedContext = { ...context, ...extractedData };
 
+    // Check if user selected a specific session (clicked "Select" button)
+    if (context.selectedSessionId) {
+      console.log('User selected specific session:', context.selectedSessionId);
+
+      // Fetch the specific selected session details
+      const selectedSessionDetails = await fetchSessionById(
+        supabaseClient,
+        context.selectedSessionId
+      );
+
+      if (selectedSessionDetails) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            response: {
+              message: `Perfect! I'll register ${updatedContext.childName || 'your child'} for ${selectedSessionDetails.programName} on ${selectedSessionDetails.dayOfWeek}s at ${selectedSessionDetails.startTime}. This is a ${selectedSessionDetails.durationWeeks}-week program for $${(selectedSessionDetails.price / 100).toFixed(0)}.`,
+              nextState: 'confirming_selection',
+              extractedData: updatedContext,
+              quickReplies: ['Confirm registration', 'Choose different session'],
+              progress: calculateProgress(updatedContext),
+              recommendations: [selectedSessionDetails],
+            },
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        console.error('Selected session not found:', context.selectedSessionId);
+      }
+    }
+
     // Check if we have enough info to fetch sessions
     let recommendations = null;
     let requestedSessionInfo = null;
@@ -997,4 +1027,72 @@ async function fetchBroaderMatches(
   }));
 
   return mapped;
+}
+
+async function fetchSessionById(supabase: any, sessionId: string): Promise<any | null> {
+  console.log('Fetching session by ID:', sessionId);
+
+  const { data: session, error } = await supabase
+    .from('sessions')
+    .select(`
+      id,
+      day_of_week,
+      start_time,
+      start_date,
+      end_date,
+      capacity,
+      enrolled_count,
+      status,
+      program:programs!inner (
+        id,
+        name,
+        description,
+        age_range,
+        price_cents,
+        duration_weeks
+      ),
+      location:locations (
+        id,
+        name,
+        address
+      ),
+      coach:staff (
+        id,
+        name,
+        rating
+      )
+    `)
+    .eq('id', sessionId)
+    .maybeSingle();
+
+  if (error || !session) {
+    console.error('Error fetching session by ID:', error);
+    return null;
+  }
+
+  const ratings = await fetchSessionRatings(supabase, session.id);
+
+  return {
+    sessionId: session.id,
+    programName: session.program?.name || 'Unknown Program',
+    programDescription: session.program?.description || '',
+    ageRange: session.program?.age_range || '[0,18)',
+    price: session.program?.price_cents || 0,
+    durationWeeks: session.program?.duration_weeks || 0,
+    locationId: session.location?.id || null,
+    locationName: session.location?.name || 'TBD',
+    locationAddress: session.location?.address || '',
+    locationRating: ratings.locationRating,
+    coachId: session.coach?.id || null,
+    coachName: session.coach?.name || 'TBD',
+    coachRating: session.coach?.rating || null,
+    sessionRating: ratings.sessionRating,
+    dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][session.day_of_week],
+    startTime: session.start_time,
+    startDate: session.start_date,
+    endDate: session.end_date,
+    capacity: session.capacity,
+    enrolledCount: session.enrolled_count,
+    spotsRemaining: session.capacity - session.enrolled_count,
+  };
 }

@@ -64,7 +64,7 @@ export function useConversation(options: UseConversationOptions) {
   }, [organizationId, familyId, onError]);
 
   const sendMessage = useCallback(
-    async (userMessage: string): Promise<Message | null> => {
+    async (userMessage: string, contextOverride?: Partial<ConversationContext>): Promise<Message | null> => {
       if (!conversationId) {
         console.error('No conversation ID');
         return null;
@@ -82,15 +82,17 @@ export function useConversation(options: UseConversationOptions) {
 
         setMessages((prev) => [...prev, userMsg]);
 
+        const updatedContext = { ...context, ...contextOverride };
+
         console.log('=== SENDING TO KAI ===');
         console.log('Message:', userMessage);
-        console.log('Context being sent:', JSON.stringify(context, null, 2));
+        console.log('Context being sent:', JSON.stringify(updatedContext, null, 2));
         console.log('======================');
 
         const response = await sendMessageToKai({
           message: userMessage,
           conversationId,
-          context,
+          context: updatedContext,
         });
 
         console.log('=== KAI RESPONSE ===');
@@ -146,6 +148,11 @@ export function useConversation(options: UseConversationOptions) {
             if (response.response.extractedData.preferredTimeOfDay) {
               newContext.preferredTimeOfDay = response.response.extractedData.preferredTimeOfDay;
             }
+          }
+
+          // Clear selectedSessionId after processing to avoid re-use
+          if (newContext.selectedSessionId) {
+            delete newContext.selectedSessionId;
           }
 
           setContext(newContext);

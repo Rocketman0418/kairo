@@ -122,8 +122,9 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
               handleSendMessage(reply);
             }}
             onSelectSession={(sessionId, programName) => {
+              // Pass the selected session ID in context
               const sessionMessage = `I'd like to register for ${programName}`;
-              handleSendMessage(sessionMessage);
+              sendMessage(sessionMessage, { selectedSessionId: sessionId });
             }}
             organizationId={organizationId}
             onSignUp={(sessionId, programName) => {

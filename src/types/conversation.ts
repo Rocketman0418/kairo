@@ -77,4 +77,5 @@ export interface ConversationContext {
     startTime: string;
     priceInCents: number;
   };
+  selectedSessionId?: string; // Simple ID reference when user clicks Select
 }
