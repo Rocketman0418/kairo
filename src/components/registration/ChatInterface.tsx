@@ -82,7 +82,7 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
 
   if (showFallbackForm) {
     return (
-      <div className="flex flex-col h-[600px] max-w-2xl mx-auto bg-[#1a2332] rounded-lg shadow-2xl border border-gray-800">
+      <div className="flex flex-col h-[calc(100vh-8rem)] min-h-[500px] max-h-[800px] max-w-2xl mx-auto bg-[#1a2332] rounded-lg shadow-2xl border border-gray-800">
         <div className="bg-gradient-to-r from-[#6366f1] to-[#06b6d4] text-white p-4 rounded-t-lg">
           <h2 className="text-xl font-semibold">Complete Your Registration</h2>
           <p className="text-sm text-blue-100">Just a few more details needed</p>
@@ -98,7 +98,7 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
   }
 
   return (
-    <div className="flex flex-col h-[600px] max-w-2xl mx-auto bg-[#1a2332] rounded-lg shadow-2xl border border-gray-800">
+    <div className="flex flex-col h-[calc(100vh-8rem)] min-h-[500px] max-h-[800px] max-w-2xl mx-auto bg-[#1a2332] rounded-lg shadow-2xl border border-gray-800">
       <div className="bg-gradient-to-r from-[#6366f1] to-[#06b6d4] text-white p-4 rounded-t-lg">
         <h2 className="text-xl font-semibold">Register with Kai</h2>
         <p className="text-sm text-blue-100">Quick registration in 3 minutes</p>
@@ -168,7 +168,7 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
           </Button>
         </div>
         <p className="text-xs text-gray-500 mt-2 text-center">
-          Powered by AI • {messages.length} messages
+          Powered by Kairo Pro & 🚀 RocketHub • {messages.length} messages
         </p>
       </div>
     </div>
