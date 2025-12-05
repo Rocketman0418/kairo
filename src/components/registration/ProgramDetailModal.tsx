@@ -19,6 +19,7 @@ interface ProgramSession {
   startTime: string;
   startDate: string;
   endDate?: string;
+  ageRange: string;
   locationId?: string;
   locationName: string;
   locationAddress: string;
@@ -84,6 +85,7 @@ export function ProgramDetailModal({
           program:programs (
             name,
             description,
+            age_range,
             price_cents,
             duration_weeks
           ),
@@ -114,6 +116,7 @@ export function ProgramDetailModal({
           startTime: s.start_time,
           startDate: s.start_date,
           endDate: s.end_date,
+          ageRange: s.program?.age_range || '[0,18)',
           locationId: s.location?.id || null,
           locationName: s.location?.name || 'TBD',
           locationAddress: s.location?.address || '',
@@ -145,6 +148,14 @@ export function ProgramDetailModal({
 
   const formatPrice = (cents: number) => {
     return `$${(cents / 100).toFixed(0)}`;
+  };
+
+  const formatAgeRange = (ageRange: string) => {
+    const match = ageRange.match(/\[(\d+),(\d+)\)/);
+    if (match) {
+      return `Ages ${match[1]}-${parseInt(match[2]) - 1}`;
+    }
+    return '';
   };
 
   return (
@@ -184,6 +195,11 @@ export function ProgramDetailModal({
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="px-2 py-0.5 bg-[#0a0f14] text-[#06b6d4] text-xs rounded-full border border-[#06b6d4]/30">
+                          {formatAgeRange(session.ageRange)}
+                        </span>
+                      </div>
                       <div className="flex items-center text-sm text-gray-300">
                         <Calendar className="w-4 h-4 mr-2 text-[#6366f1]" />
                         <span className="font-medium">{session.dayOfWeek}s at {formatTime(session.startTime)}</span>

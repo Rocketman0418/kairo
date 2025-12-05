@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Star, Calendar, Clock, Award } from 'lucide-react';
+import { Star, Calendar, Clock, Award, MapPin, Users, Info } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { supabase } from '../../lib/supabase';
+import { SessionDetailModal } from './SessionDetailModal';
 
 interface CoachDetailModalProps {
   isOpen: boolean;
@@ -10,16 +11,26 @@ interface CoachDetailModalProps {
   coachName: string;
   coachRating: number | null;
   organizationId: string;
+  onSignUp?: (sessionId: string, programName: string) => void;
 }
 
 interface SessionForCoach {
   id: string;
   programName: string;
+  programDescription: string;
+  ageRange: string;
   dayOfWeek: string;
   startTime: string;
   startDate: string;
+  endDate?: string;
+  locationId?: string;
   locationName: string;
+  locationAddress: string;
   spotsRemaining: number;
+  capacity: number;
+  enrolledCount: number;
+  price: number;
+  durationWeeks: number;
 }
 
 interface CoachReview {
@@ -37,10 +48,12 @@ export function CoachDetailModal({
   coachName,
   coachRating,
   organizationId,
+  onSignUp,
 }: CoachDetailModalProps) {
   const [sessions, setSessions] = useState<SessionForCoach[]>([]);
   const [reviews, setReviews] = useState<CoachReview[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<SessionForCoach | null>(null);
 
   useEffect(() => {
     if (isOpen && coachId) {
@@ -58,14 +71,22 @@ export function CoachDetailModal({
           day_of_week,
           start_time,
           start_date,
+          end_date,
           capacity,
           enrolled_count,
+          location_id,
           program:programs (
             name,
+            description,
+            age_range,
+            price_cents,
+            duration_weeks,
             organization_id
           ),
           location:locations (
-            name
+            id,
+            name,
+            address
           )
         `)
         .eq('coach_id', coachId)
@@ -81,11 +102,20 @@ export function CoachDetailModal({
         .map((s: any) => ({
           id: s.id,
           programName: s.program?.name || 'Unknown',
+          programDescription: s.program?.description || '',
+          ageRange: s.program?.age_range || '[0,18)',
           dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][s.day_of_week],
-          startTime: formatTime(s.start_time),
-          startDate: new Date(s.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          startTime: s.start_time,
+          startDate: s.start_date,
+          endDate: s.end_date,
+          locationId: s.location?.id || null,
           locationName: s.location?.name || 'TBD',
+          locationAddress: s.location?.address || '',
           spotsRemaining: s.capacity - s.enrolled_count,
+          capacity: s.capacity,
+          enrolledCount: s.enrolled_count,
+          price: s.program?.price_cents || 0,
+          durationWeeks: s.program?.duration_weeks || 0,
         }));
 
       setSessions(filtered);
@@ -126,6 +156,14 @@ export function CoachDetailModal({
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
     return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const formatAgeRange = (ageRange: string) => {
+    const match = ageRange.match(/\[(\d+),(\d+)\)/);
+    if (match) {
+      return `Ages ${match[1]}-${parseInt(match[2]) - 1}`;
+    }
+    return '';
   };
 
   const renderStars = (rating: number) => {
@@ -206,39 +244,77 @@ export function CoachDetailModal({
           ) : (
             <div className="space-y-3 max-h-64 overflow-y-auto">
               {sessions.map((session) => (
-                <div
+                <button
                   key={session.id}
-                  className="bg-[#0f1419] border border-gray-800 rounded-lg p-4 hover:border-[#6366f1]/30 transition-colors"
+                  onClick={() => setSelectedSession(session)}
+                  className="w-full bg-[#0f1419] border border-gray-800 rounded-lg p-4 hover:border-[#6366f1]/30 transition-colors cursor-pointer text-left"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h5 className="font-semibold text-white">{session.programName}</h5>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h5 className="font-semibold text-white">{session.programName}</h5>
+                        <span className="px-2 py-0.5 bg-[#0a0f14] text-[#06b6d4] text-xs rounded-full border border-[#06b6d4]/30">
+                          {formatAgeRange(session.ageRange)}
+                        </span>
+                      </div>
                       <div className="mt-2 space-y-1">
                         <div className="flex items-center text-sm text-gray-400">
                           <Calendar className="w-4 h-4 mr-2 text-[#6366f1]" />
-                          <span>{session.dayOfWeek}s at {session.startTime}</span>
+                          <span>{session.dayOfWeek}s at {formatTime(session.startTime)}</span>
                         </div>
                         <div className="flex items-center text-sm text-gray-400">
                           <Clock className="w-4 h-4 mr-2 text-[#8b5cf6]" />
-                          <span>Starts {session.startDate}</span>
+                          <span>Starts {new Date(session.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                         </div>
-                        <div className="text-sm text-gray-400">
-                          Location: {session.locationName}
+                        <div className="flex items-center text-sm text-gray-400">
+                          <MapPin className="w-4 h-4 mr-2 text-[#06b6d4]" />
+                          <span>{session.locationName}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="text-right ml-4">
-                      <div className="text-sm font-medium text-green-400">
-                        {session.spotsRemaining} spots left
+                    <div className="text-right ml-4 flex flex-col items-end gap-2">
+                      <div className="flex items-center text-sm font-medium text-green-400">
+                        <Users className="w-4 h-4 mr-1" />
+                        {session.spotsRemaining} left
                       </div>
+                      <Info className="w-4 h-4 text-gray-500" />
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {selectedSession && onSignUp && (
+        <SessionDetailModal
+          isOpen={!!selectedSession}
+          onClose={() => setSelectedSession(null)}
+          session={{
+            sessionId: selectedSession.id,
+            programName: selectedSession.programName,
+            programDescription: selectedSession.programDescription,
+            price: selectedSession.price,
+            durationWeeks: selectedSession.durationWeeks,
+            locationId: selectedSession.locationId,
+            locationName: selectedSession.locationName,
+            locationAddress: selectedSession.locationAddress,
+            coachId: coachId,
+            coachName: coachName,
+            coachRating: coachRating,
+            dayOfWeek: selectedSession.dayOfWeek,
+            startTime: selectedSession.startTime,
+            startDate: selectedSession.startDate,
+            endDate: selectedSession.endDate,
+            capacity: selectedSession.capacity,
+            enrolledCount: selectedSession.enrolledCount,
+            spotsRemaining: selectedSession.spotsRemaining,
+          }}
+          organizationId={organizationId}
+          onSignUp={onSignUp}
+        />
+      )}
     </Modal>
   );
 }

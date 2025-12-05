@@ -11,6 +11,7 @@ interface SessionRecommendation {
   programDescription: string;
   price: number;
   durationWeeks: number;
+  ageRange?: string;
   locationName: string;
   locationAddress: string;
   locationId?: string;
@@ -56,6 +57,15 @@ export function SessionCard({ session, onSelect, organizationId, onSignUp }: Ses
     return 'text-green-400 bg-green-950/30 border border-green-800/50';
   };
 
+  const formatAgeRange = (ageRange?: string) => {
+    if (!ageRange) return null;
+    const match = ageRange.match(/\[(\d+),(\d+)\)/);
+    if (match) {
+      return `Ages ${match[1]}-${parseInt(match[2]) - 1}`;
+    }
+    return null;
+  };
+
   return (
     <>
       <div className="bg-[#1a2332] border border-gray-800 rounded-lg p-4 hover:shadow-lg hover:shadow-blue-500/10 transition-all hover:border-[#6366f1]/50">
@@ -63,6 +73,11 @@ export function SessionCard({ session, onSelect, organizationId, onSignUp }: Ses
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-semibold text-white">{session.programName}</h3>
+              {formatAgeRange(session.ageRange) && (
+                <span className="px-2 py-0.5 bg-[#0f1419] text-[#06b6d4] text-xs rounded-full border border-[#06b6d4]/30">
+                  {formatAgeRange(session.ageRange)}
+                </span>
+              )}
               <button
                 onClick={() => setShowProgramModal(true)}
                 className="p-1 hover:bg-[#0f1419] rounded-full transition-colors group"
