@@ -3,6 +3,7 @@ import { Star, Calendar, Clock, Award, MapPin, Users, Info } from 'lucide-react'
 import { Modal } from '../common/Modal';
 import { supabase } from '../../lib/supabase';
 import { SessionDetailModal } from './SessionDetailModal';
+import { LocationDetailModal } from './LocationDetailModal';
 
 interface CoachDetailModalProps {
   isOpen: boolean;
@@ -54,6 +55,7 @@ export function CoachDetailModal({
   const [reviews, setReviews] = useState<CoachReview[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionForCoach | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<{ id: string; name: string; address: string } | null>(null);
 
   useEffect(() => {
     if (isOpen && coachId) {
@@ -268,7 +270,23 @@ export function CoachDetailModal({
                         </div>
                         <div className="flex items-center text-sm text-gray-400">
                           <MapPin className="w-4 h-4 mr-2 text-[#06b6d4]" />
-                          <span>{session.locationName}</span>
+                          {session.locationId ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLocation({
+                                  id: session.locationId!,
+                                  name: session.locationName,
+                                  address: session.locationAddress,
+                                });
+                              }}
+                              className="hover:text-[#06b6d4] hover:underline transition-colors"
+                            >
+                              {session.locationName}
+                            </button>
+                          ) : (
+                            <span>{session.locationName}</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -311,6 +329,18 @@ export function CoachDetailModal({
             enrolledCount: selectedSession.enrolledCount,
             spotsRemaining: selectedSession.spotsRemaining,
           }}
+          organizationId={organizationId}
+          onSignUp={onSignUp}
+        />
+      )}
+
+      {selectedLocation && (
+        <LocationDetailModal
+          isOpen={!!selectedLocation}
+          onClose={() => setSelectedLocation(null)}
+          locationId={selectedLocation.id}
+          locationName={selectedLocation.name}
+          locationAddress={selectedLocation.address}
           organizationId={organizationId}
           onSignUp={onSignUp}
         />

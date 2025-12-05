@@ -3,6 +3,8 @@ import { Calendar, Clock, MapPin, Users, Info, Star } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { supabase } from '../../lib/supabase';
 import { SessionDetailModal } from './SessionDetailModal';
+import { LocationDetailModal } from './LocationDetailModal';
+import { CoachDetailModal } from './CoachDetailModal';
 
 interface ProgramDetailModalProps {
   isOpen: boolean;
@@ -44,6 +46,8 @@ export function ProgramDetailModal({
   const [sessions, setSessions] = useState<ProgramSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSession, setSelectedSession] = useState<ProgramSession | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<{ id: string; name: string; address: string } | null>(null);
+  const [selectedCoach, setSelectedCoach] = useState<{ id: string; name: string; rating: number | null } | null>(null);
 
   useEffect(() => {
     if (isOpen && programName) {
@@ -210,14 +214,51 @@ export function ProgramDetailModal({
                       </div>
                       <div className="flex items-center text-sm text-gray-400">
                         <MapPin className="w-4 h-4 mr-2 text-[#06b6d4]" />
-                        <span>{session.locationName}</span>
+                        {session.locationId ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLocation({
+                                id: session.locationId!,
+                                name: session.locationName,
+                                address: session.locationAddress,
+                              });
+                            }}
+                            className="hover:text-[#06b6d4] hover:underline transition-colors"
+                          >
+                            {session.locationName}
+                          </button>
+                        ) : (
+                          <span>{session.locationName}</span>
+                        )}
                       </div>
                       {session.coachName && (
                         <div className="flex items-center text-sm text-gray-400">
                           <Star className="w-4 h-4 mr-2 text-yellow-500" />
-                          <span>Coach {session.coachName}</span>
-                          {session.coachRating && (
-                            <span className="ml-1">({session.coachRating.toFixed(1)}★)</span>
+                          {session.coachId ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCoach({
+                                  id: session.coachId!,
+                                  name: session.coachName,
+                                  rating: session.coachRating,
+                                });
+                              }}
+                              className="hover:text-yellow-500 hover:underline transition-colors"
+                            >
+                              Coach {session.coachName}
+                              {session.coachRating && (
+                                <span className="ml-1">({session.coachRating.toFixed(1)}★)</span>
+                              )}
+                            </button>
+                          ) : (
+                            <span>
+                              Coach {session.coachName}
+                              {session.coachRating && (
+                                <span className="ml-1">({session.coachRating.toFixed(1)}★)</span>
+                              )}
+                            </span>
                           )}
                         </div>
                       )}
@@ -261,6 +302,30 @@ export function ProgramDetailModal({
             enrolledCount: selectedSession.enrolledCount,
             spotsRemaining: selectedSession.spotsRemaining,
           }}
+          organizationId={organizationId}
+          onSignUp={onSignUp}
+        />
+      )}
+
+      {selectedLocation && (
+        <LocationDetailModal
+          isOpen={!!selectedLocation}
+          onClose={() => setSelectedLocation(null)}
+          locationId={selectedLocation.id}
+          locationName={selectedLocation.name}
+          locationAddress={selectedLocation.address}
+          organizationId={organizationId}
+          onSignUp={onSignUp}
+        />
+      )}
+
+      {selectedCoach && (
+        <CoachDetailModal
+          isOpen={!!selectedCoach}
+          onClose={() => setSelectedCoach(null)}
+          coachId={selectedCoach.id}
+          coachName={selectedCoach.name}
+          coachRating={selectedCoach.rating}
           organizationId={organizationId}
           onSignUp={onSignUp}
         />
