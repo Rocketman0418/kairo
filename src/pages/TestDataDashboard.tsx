@@ -62,14 +62,15 @@ export function TestDataDashboard() {
               .eq('session_id', session.id);
 
             const reviewCount = reviews?.length || 0;
+            // Supabase returns NUMERIC fields as strings, must parse to float
             const avgQuality = reviewCount > 0
-              ? reviews!.reduce((sum, r) => sum + r.overall_rating, 0) / reviewCount
+              ? reviews!.reduce((sum, r) => sum + parseFloat(r.overall_rating || '0'), 0) / reviewCount
               : 0;
             const avgCoach = reviewCount > 0
-              ? reviews!.reduce((sum, r) => sum + (r.coach_rating || 0), 0) / reviewCount
+              ? reviews!.reduce((sum, r) => sum + parseFloat(r.coach_rating || '0'), 0) / reviewCount
               : 0;
             const avgLocation = reviewCount > 0
-              ? reviews!.reduce((sum, r) => sum + (r.location_rating || 0), 0) / reviewCount
+              ? reviews!.reduce((sum, r) => sum + parseFloat(r.location_rating || '0'), 0) / reviewCount
               : 0;
 
             return {
