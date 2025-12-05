@@ -34,6 +34,7 @@ export function TestDataDashboard() {
       const { data, error } = await supabase.rpc('get_session_test_data');
 
       if (error) {
+        console.error('RPC error:', error);
         // Fallback to manual query if RPC doesn't exist
         const { data: sessionsData, error: sessionsError } = await supabase
           .from('sessions')
@@ -95,7 +96,16 @@ export function TestDataDashboard() {
 
         setSessions(sessionsWithReviews);
       } else {
-        setSessions(data);
+        // RPC data already matches interface, just ensure numeric values are parsed
+        const transformedData = (data || []).map((session: any) => ({
+          ...session,
+          coach_rating: parseFloat(session.coach_rating || '0'),
+          review_count: parseInt(session.review_count || '0'),
+          avg_quality_score: parseFloat(session.avg_quality_score || '0'),
+          avg_coach_score: parseFloat(session.avg_coach_score || '0'),
+          avg_location_score: parseFloat(session.avg_location_score || '0'),
+        }));
+        setSessions(transformedData);
       }
     } catch (err) {
       console.error('Error loading test data:', err);
