@@ -18,9 +18,11 @@ interface SessionDetailModalProps {
     locationId?: string;
     locationName: string;
     locationAddress: string;
+    locationRating?: number | null;
     coachId?: string;
     coachName: string;
     coachRating: number | null;
+    sessionRating?: number | null;
     dayOfWeek: string;
     startTime: string;
     startDate: string;
@@ -115,6 +117,16 @@ export function SessionDetailModal({
             <h4 className="text-lg font-semibold text-white">Schedule</h4>
 
             <div className="space-y-3">
+              {session.sessionRating && (
+                <div className="flex items-start gap-3">
+                  <Star className="w-5 h-5 text-yellow-400 fill-yellow-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-yellow-400">{session.sessionRating.toFixed(1)} Session Rating</div>
+                    <div className="text-sm text-gray-400">Based on past participant reviews</div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-start gap-3 text-gray-300">
                 <Calendar className="w-5 h-5 text-[#6366f1] mt-0.5 flex-shrink-0" />
                 <div>
@@ -142,6 +154,9 @@ export function SessionDetailModal({
                     className="font-medium hover:text-[#06b6d4] transition-colors underline decoration-dotted underline-offset-2 text-left flex items-center gap-1"
                   >
                     <span>{session.locationName}</span>
+                    {session.locationRating && (
+                      <span className="ml-1 text-yellow-400">({session.locationRating.toFixed(1)}★)</span>
+                    )}
                     <Info className="w-3 h-3" />
                   </button>
                   <div className="text-sm text-gray-400">{session.locationAddress}</div>
