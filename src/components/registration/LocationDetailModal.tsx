@@ -198,22 +198,37 @@ export function LocationDetailModal({
                           <div className="flex items-center text-sm text-gray-400">
                             <Star className="w-4 h-4 mr-2 text-yellow-500" />
                             {session.coachId ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedCoach({
-                                    id: session.coachId!,
-                                    name: session.coachName,
-                                    rating: session.coachRating,
-                                  });
-                                }}
-                                className="hover:text-yellow-500 hover:underline transition-colors"
-                              >
-                                Coach {session.coachName}
-                                {session.coachRating && (
-                                  <span className="ml-1">({session.coachRating.toFixed(1)}★)</span>
-                                )}
-                              </button>
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedCoach({
+                                      id: session.coachId!,
+                                      name: session.coachName,
+                                      rating: session.coachRating,
+                                    });
+                                  }}
+                                  className="hover:text-yellow-500 hover:underline transition-colors"
+                                >
+                                  Coach {session.coachName}
+                                  {session.coachRating && (
+                                    <span className="ml-1">({session.coachRating.toFixed(1)}★)</span>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedCoach({
+                                      id: session.coachId!,
+                                      name: session.coachName,
+                                      rating: session.coachRating,
+                                    });
+                                  }}
+                                  className="ml-1.5 hover:text-yellow-500 transition-colors"
+                                >
+                                  <Info className="w-3.5 h-3.5" />
+                                </button>
+                              </>
                             ) : (
                               <span>
                                 Coach {session.coachName}

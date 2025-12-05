@@ -271,19 +271,34 @@ export function CoachDetailModal({
                         <div className="flex items-center text-sm text-gray-400">
                           <MapPin className="w-4 h-4 mr-2 text-[#06b6d4]" />
                           {session.locationId ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedLocation({
-                                  id: session.locationId!,
-                                  name: session.locationName,
-                                  address: session.locationAddress,
-                                });
-                              }}
-                              className="hover:text-[#06b6d4] hover:underline transition-colors"
-                            >
-                              {session.locationName}
-                            </button>
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedLocation({
+                                    id: session.locationId!,
+                                    name: session.locationName,
+                                    address: session.locationAddress,
+                                  });
+                                }}
+                                className="hover:text-[#06b6d4] hover:underline transition-colors"
+                              >
+                                {session.locationName}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedLocation({
+                                    id: session.locationId!,
+                                    name: session.locationName,
+                                    address: session.locationAddress,
+                                  });
+                                }}
+                                className="ml-1.5 hover:text-[#06b6d4] transition-colors"
+                              >
+                                <Info className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           ) : (
                             <span>{session.locationName}</span>
                           )}
