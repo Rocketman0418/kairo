@@ -212,13 +212,13 @@ async function buildSystemContext(context: any): string {
   if (!hasChildName) {
     systemPrompt += `\n- Need: Child's name (ask first)`;
   } else {
-    systemPrompt += `\n-  Have: Child's name (${context.childName})`;
+    systemPrompt += `\n-  Have: Child's name (${context.childName})`;
   }
 
   if (!hasChildAge) {
     systemPrompt += `\n- Need: Child's age (ask after name)`;
   } else {
-    systemPrompt += `\n-  Have: Child's age (${context.childAge})`;
+    systemPrompt += `\n-  Have: Child's age (${context.childAge})`;
   }
 
   if (!hasPreferences) {
@@ -227,7 +227,7 @@ async function buildSystemContext(context: any): string {
     const days = (context.preferredDays || []).map((d: number) =>
       ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d]
     ).join(', ');
-    systemPrompt += `\n-  Have: Preferences (${days}${context.preferredTimeOfDay ? ', ' + context.preferredTimeOfDay : ''})`;
+    systemPrompt += `\n-  Have: Preferences (${days}${context.preferredTimeOfDay ? ', ' + context.preferredTimeOfDay : ''})`;
   }
 
   systemPrompt += `
@@ -555,7 +555,7 @@ async function fetchMatchingSessions(
       }
     }
 
-    console.log(` Session ${session.id} (${program.name}) PASSED all filters`);
+    console.log(` Session ${session.id} (${program.name}) PASSED all filters`);
     return true;
   });
 
