@@ -13,10 +13,6 @@ export function Home() {
           </h1>
           <p className="text-2xl text-white mb-2">Registration Reimagined</p>
           <p className="text-lg text-gray-400 mb-4">Built for Busy Parents</p>
-          <p className="text-base text-gray-400 max-w-3xl mx-auto leading-relaxed">
-            Transforming youth sports registration from an 18-minute ordeal into a 5-minute conversation.
-            AI-powered. Voice-enabled.
-          </p>
         </div>
 
         <ChatInterface organizationId="00000000-0000-0000-0000-000000000001" />
