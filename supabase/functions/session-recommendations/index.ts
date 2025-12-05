@@ -24,9 +24,11 @@ interface SessionRecommendation {
   programDescription?: string;
   locationName: string;
   locationAddress?: string;
+  locationRating?: number;
   dayOfWeek: number;
   dayName: string;
   startTime: string;
+  startDate?: string;
   displayTime: string;
   spotsRemaining: number;
   priceInCents: number;
@@ -35,6 +37,7 @@ interface SessionRecommendation {
   durationWeeks?: number;
   coachName?: string;
   coachRating?: number;
+  sessionRating?: number;
   urgency?: 'high' | 'medium' | 'low';
 }
 
@@ -60,9 +63,11 @@ Deno.serve(async (req: Request) => {
         id,
         day_of_week,
         start_time,
+        start_date,
         capacity,
         enrolled_count,
         status,
+        average_rating,
         program:programs(
           id,
           name,
@@ -74,7 +79,8 @@ Deno.serve(async (req: Request) => {
         location:locations(
           id,
           name,
-          address
+          address,
+          average_rating
         ),
         coach:staff(
           id,
@@ -127,9 +133,11 @@ Deno.serve(async (req: Request) => {
           programDescription: session.program.description,
           locationName: session.location.name,
           locationAddress: session.location.address,
+          locationRating: session.location.average_rating,
           dayOfWeek: session.day_of_week,
           dayName: getDayName(session.day_of_week),
           startTime: session.start_time,
+          startDate: session.start_date,
           displayTime: formatTime(session.start_time),
           spotsRemaining,
           priceInCents: session.program.price_cents,
@@ -138,6 +146,7 @@ Deno.serve(async (req: Request) => {
           durationWeeks: session.program.duration_weeks,
           coachName: session.coach?.name,
           coachRating: session.coach?.rating,
+          sessionRating: session.average_rating,
           urgency,
         };
       })
