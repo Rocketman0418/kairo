@@ -168,7 +168,7 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
           </Button>
         </div>
         <p className="text-xs text-gray-500 mt-2 text-center">
-          Powered by Kairo Pro & 🚀 RocketHub • {messages.length} messages
+          Powered by Kairo Pro & RocketHub 🚀 • {messages.length} messages
         </p>
       </div>
     </div>
