@@ -64,6 +64,19 @@ export function MessageBubble({ message, onQuickReply, onSelectSession, organiza
         )}
       </div>
 
+      {!isUser && message.metadata?.requestedFullSession && (
+        <div className="ml-11 space-y-3">
+          <SessionCard
+            key={message.metadata.requestedFullSession.sessionId}
+            session={message.metadata.requestedFullSession}
+            onSelect={(sessionId) => onSelectSession?.(sessionId, message.metadata.requestedFullSession.programName)}
+            organizationId={organizationId}
+            onSignUp={onSignUp}
+            isFull={true}
+          />
+        </div>
+      )}
+
       {!isUser && message.metadata?.recommendations && message.metadata.recommendations.length > 0 && (
         <div className="ml-11 space-y-3">
           {message.metadata.recommendations.map((session) => (

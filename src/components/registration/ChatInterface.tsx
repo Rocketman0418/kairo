@@ -160,7 +160,7 @@ export function ChatInterface({ organizationId, familyId }: ChatInterfaceProps) 
             className="flex-1"
           />
           <Button
-            onClick={handleSendMessage}
+            onClick={() => handleSendMessage()}
             disabled={!inputValue.trim() || isLoading}
             className="px-4"
           >

@@ -193,7 +193,7 @@ export function TestDataDashboard() {
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Enrollment</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Status</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Coach Rating</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Session Quality</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Session Rating</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
@@ -302,8 +302,8 @@ export function TestDataDashboard() {
               <h4 className="text-sm font-medium text-gray-300 mb-2">Key Differences</h4>
               <ul className="space-y-1 text-sm text-gray-400">
                 <li><strong>Coach Rating:</strong> Individual coach performance (staff table)</li>
-                <li><strong>Session Quality:</strong> Overall experience (reviews table)</li>
-                <li><strong>Session quality</strong> = Coach + Location + Time + Value</li>
+                <li><strong>Session Rating:</strong> Overall experience from reviews (reviews table)</li>
+                <li><strong>Session rating</strong> = Average of overall_rating from all reviews</li>
               </ul>
             </div>
           </div>

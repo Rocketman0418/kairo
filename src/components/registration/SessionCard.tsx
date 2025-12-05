@@ -31,9 +31,10 @@ interface SessionCardProps {
   onSelect: (sessionId: string) => void;
   organizationId: string;
   onSignUp?: (sessionId: string, programName: string) => void;
+  isFull?: boolean;
 }
 
-export function SessionCard({ session, onSelect, organizationId, onSignUp }: SessionCardProps) {
+export function SessionCard({ session, onSelect, organizationId, onSignUp, isFull = false }: SessionCardProps) {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showCoachModal, setShowCoachModal] = useState(false);
   const [showProgramModal, setShowProgramModal] = useState(false);
@@ -136,17 +137,35 @@ export function SessionCard({ session, onSelect, organizationId, onSignUp }: Ses
         </div>
 
         <div className="flex items-center justify-between pt-3 border-t border-gray-800">
-          <div className={`flex items-center text-sm font-medium px-3 py-1 rounded-full ${getSpotsColor()}`}>
-            <Users className="w-4 h-4 mr-1" />
-            <span>{session.spotsRemaining} spot{session.spotsRemaining !== 1 ? 's' : ''} left</span>
-          </div>
+          {isFull ? (
+            <>
+              <div className="flex items-center text-sm font-medium px-3 py-1 rounded-full text-red-400 bg-red-950/30 border border-red-800/50">
+                <Users className="w-4 h-4 mr-1" />
+                <span>Class Full ({session.enrolledCount}/{session.capacity})</span>
+              </div>
 
-          <Button
-            onClick={() => onSelect(session.sessionId)}
-            className="px-4 py-2"
-          >
-            Select
-          </Button>
+              <Button
+                onClick={() => onSelect(session.sessionId)}
+                className="px-4 py-2 bg-gradient-to-r from-[#f59e0b] to-[#f97316] hover:from-[#ea8f04] hover:to-[#e96209]"
+              >
+                Join Waitlist
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className={`flex items-center text-sm font-medium px-3 py-1 rounded-full ${getSpotsColor()}`}>
+                <Users className="w-4 h-4 mr-1" />
+                <span>{session.spotsRemaining} spot{session.spotsRemaining !== 1 ? 's' : ''} left</span>
+              </div>
+
+              <Button
+                onClick={() => onSelect(session.sessionId)}
+                className="px-4 py-2"
+              >
+                Select
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

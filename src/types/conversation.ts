@@ -28,6 +28,7 @@ export interface SessionRecommendation {
   capacity: number;
   enrolledCount: number;
   spotsRemaining: number;
+  isFull?: boolean;
 }
 
 export interface Message {
@@ -41,6 +42,7 @@ export interface Message {
     quickReplies?: string[];
     showFormFallback?: boolean;
     recommendations?: SessionRecommendation[];
+    requestedFullSession?: SessionRecommendation;
   };
 }
 

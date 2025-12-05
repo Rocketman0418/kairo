@@ -116,6 +116,7 @@ export function useConversation(options: UseConversationOptions) {
               quickReplies: response.response.quickReplies,
               extractedData: response.response.extractedData,
               recommendations: response.response.recommendations,
+              requestedFullSession: response.response.requestedFullSession,
             },
           };
 
