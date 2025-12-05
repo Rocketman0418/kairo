@@ -15,9 +15,11 @@ interface SessionRecommendation {
   locationName: string;
   locationAddress: string;
   locationId?: string;
+  locationRating?: number | null;
   coachName: string;
   coachId?: string;
   coachRating: number | null;
+  sessionRating?: number | null;
   dayOfWeek: string;
   startTime: string;
   startDate: string;
@@ -96,6 +98,14 @@ export function SessionCard({ session, onSelect, organizationId, onSignUp, isFul
         </div>
 
         <div className="space-y-2 mb-4">
+          {session.sessionRating && (
+            <div className="flex items-center text-sm text-gray-300 bg-gray-800/50 rounded px-2 py-1">
+              <Star className="w-4 h-4 mr-2 text-yellow-400 fill-yellow-400" />
+              <span className="font-medium text-yellow-400">{session.sessionRating.toFixed(1)}</span>
+              <span className="ml-1 text-xs text-gray-400">Session Rating</span>
+            </div>
+          )}
+
           <div className="flex items-center text-sm text-gray-300">
             <Calendar className="w-4 h-4 mr-2 text-[#6366f1]" />
             <span>{session.dayOfWeek}s at {formatTime(session.startTime)}</span>
@@ -109,6 +119,9 @@ export function SessionCard({ session, onSelect, organizationId, onSignUp, isFul
               title="View location details"
             >
               <span>{session.locationName}</span>
+              {session.locationRating && (
+                <span className="ml-1 text-yellow-400">({session.locationRating.toFixed(1)}★)</span>
+              )}
               <Info className="w-3 h-3" />
             </button>
           </div>

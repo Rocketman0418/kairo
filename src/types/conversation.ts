@@ -20,8 +20,10 @@ export interface SessionRecommendation {
   durationWeeks: number;
   locationName: string;
   locationAddress: string;
+  locationRating: number | null;
   coachName: string;
   coachRating: number | null;
+  sessionRating: number | null;
   dayOfWeek: string;
   startTime: string;
   startDate: string;
